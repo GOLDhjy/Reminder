@@ -72,9 +72,8 @@ class NotificationManager: ObservableObject {
 
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = "⏰ \(reminder.title)"
-        content.subtitle = AppConstants.appName
-        content.body = reminder.notes ?? "是时候\(reminder.title)了，点击查看详情"
+        // 在标题前添加类型相关的 emoji
+        content.title = "\(reminder.type.emojiIcon) \(reminder.title)"
 
         // Add rich notification attachments for better appearance
         content.sound = .default
@@ -84,11 +83,10 @@ class NotificationManager: ObservableObject {
             "reminderType": reminder.type.rawValue
         ]
 
-        // Add notification badge
-        content.badge = 1
+        // Don't set badge here - let the system manage it when notification is actually delivered
 
-        // Set priority
-        content.interruptionLevel = .timeSensitive
+        // Set priority to critical for longer display and more prominence
+        content.interruptionLevel = .critical
 
         // Add actions with better titles and options
         let completeAction = UNNotificationAction(
@@ -219,14 +217,23 @@ class NotificationManager: ObservableObject {
         }
 
         try? modelContext.save()
+
+        // Clear the badge when user interacts with notification
+        await clearBadge()
+    }
+
+    // Clear application badge
+    private func clearBadge() async {
+        await MainActor.run {
+            UIApplication.shared.applicationIconBadgeNumber = 0
+        }
     }
 
     // Schedule a snooze notification
     private func scheduleSnoozeNotification(for reminder: Reminder) async throws {
         let content = UNMutableNotificationContent()
-        content.title = "⏰ 延迟提醒：\(reminder.title)"
-        content.subtitle = AppConstants.appName
-        content.body = "是时候\(reminder.title)了，别忘了哦~"
+        // 在标题前添加类型相关的 emoji
+        content.title = "\(reminder.type.emojiIcon) \(reminder.title)"
         content.sound = .default
         content.categoryIdentifier = AppConstants.reminderNotificationCategory
         content.userInfo = [
@@ -234,6 +241,8 @@ class NotificationManager: ObservableObject {
             "reminderType": reminder.type.rawValue,
             "isSnooze": true
         ]
+        // 设置延迟提醒的优先级为 critical
+        content.interruptionLevel = .critical
 
         // Trigger after default snooze interval
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: AppConstants.defaultSnoozeInterval, repeats: false)

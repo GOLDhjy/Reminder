@@ -84,6 +84,18 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         }
     }
 
+    var emojiIcon: String {
+        switch self {
+        case .water: return "💧"
+        case .meal: return "🍽️"
+        case .rest: return "🧘"
+        case .sleep: return "😴"
+        case .medicine: return "💊"
+        case .exercise: return "🏃"
+        case .custom: return "📝"
+        }
+    }
+
     var color: String {
         switch self {
         case .water: return "blue"

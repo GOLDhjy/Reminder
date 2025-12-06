@@ -366,6 +366,39 @@ struct ReminderRow: View {
     let reminder: Reminder
     let onTap: () -> Void
 
+    // 计算距离下次提醒的剩余时间
+    private func timeUntil(_ date: Date) -> String {
+        let now = Date()
+        let interval = date.timeIntervalSince(now)
+
+        if interval <= 0 {
+            return "现在"
+        }
+
+        let totalSeconds = Int(interval)
+        let days = totalSeconds / (24 * 60 * 60)
+        let hours = (totalSeconds % (24 * 60 * 60)) / (60 * 60)
+        let minutes = (totalSeconds % (60 * 60)) / 60
+
+        var components: [String] = []
+
+        if days > 0 {
+            components.append("\(days)天")
+        }
+        if hours > 0 {
+            components.append("\(hours)小时")
+        }
+        if minutes > 0 {
+            components.append("\(minutes)分钟")
+        }
+
+        if components.isEmpty {
+            return "1分钟内"
+        }
+
+        return components.joined() + "后"
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 0) {
@@ -428,7 +461,7 @@ struct ReminderRow: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "bell")
                                         .font(.caption)
-                                    Text(nextTrigger, style: .relative)
+                                    Text(timeUntil(nextTrigger))
                                         .font(.caption)
                                         .fontWeight(.medium)
                                 }
