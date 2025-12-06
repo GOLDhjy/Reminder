@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var showingAddReminder = false
     @State private var showingSettings = false
     @State private var selectedType: ReminderType?
+    @State private var editingReminder: Reminder?
 
     var body: some View {
         NavigationSplitView {
@@ -240,6 +241,9 @@ struct ContentView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .sheet(item: $editingReminder) { reminder in
+                AddReminderView(reminder: reminder)
+            }
 #if os(macOS)
             .navigationSplitViewColumnWidth(min: 300, ideal: 350)
 #endif
@@ -303,12 +307,15 @@ struct ContentView: View {
             case .medicine:
                 // Default to morning
                 return calendar.date(bySettingHour: 8, minute: 0, second: 0, of: now) ?? now
+            case .exercise:
+                // Default to evening
+                return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now
             case .custom:
                 return now
             }
         }()
 
-        let repeatRule: RepeatRule = type == .medicine ? .daily : .daily
+        let repeatRule: RepeatRule = type == .medicine || type == .exercise ? .daily : .daily
         let reminder = Reminder(
             title: type.rawValue,
             type: type,
@@ -335,8 +342,7 @@ struct ContentView: View {
     }
 
     private func editReminder(_ reminder: Reminder) {
-        // This would present the edit view
-        // Implementation depends on navigation structure
+        editingReminder = reminder
     }
 
     private func saveAndSchedule(reminder: Reminder) {
@@ -469,6 +475,7 @@ struct ReminderRow: View {
         case .rest: return .green
         case .sleep: return .purple
         case .medicine: return .red
+        case .exercise: return .mint
         case .custom: return .gray
         }
     }

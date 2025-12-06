@@ -72,9 +72,11 @@ class NotificationManager: ObservableObject {
 
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = AppConstants.appName
-        content.subtitle = reminder.title
-        content.body = reminder.notes ?? "是时候\(reminder.title)了"
+        content.title = "⏰ \(reminder.title)"
+        content.subtitle = AppConstants.appName
+        content.body = reminder.notes ?? "是时候\(reminder.title)了，点击查看详情"
+
+        // Add rich notification attachments for better appearance
         content.sound = .default
         content.categoryIdentifier = AppConstants.reminderNotificationCategory
         content.userInfo = [
@@ -82,16 +84,22 @@ class NotificationManager: ObservableObject {
             "reminderType": reminder.type.rawValue
         ]
 
-        // Add actions
+        // Add notification badge
+        content.badge = 1
+
+        // Set priority
+        content.interruptionLevel = .timeSensitive
+
+        // Add actions with better titles and options
         let completeAction = UNNotificationAction(
             identifier: AppConstants.completeActionIdentifier,
-            title: "已完成",
-            options: []
+            title: "✅ 完成",
+            options: [.foreground]
         )
 
         let snoozeAction = UNNotificationAction(
             identifier: AppConstants.snoozeActionIdentifier,
-            title: "延迟5分钟",
+            title: "⏰ 稍后提醒",
             options: []
         )
 
@@ -216,9 +224,11 @@ class NotificationManager: ObservableObject {
     // Schedule a snooze notification
     private func scheduleSnoozeNotification(for reminder: Reminder) async throws {
         let content = UNMutableNotificationContent()
-        content.title = AppConstants.appName
-        content.body = "是时候\(reminder.title)了（延迟5分钟）"
+        content.title = "⏰ 延迟提醒：\(reminder.title)"
+        content.subtitle = AppConstants.appName
+        content.body = "是时候\(reminder.title)了，别忘了哦~"
         content.sound = .default
+        content.categoryIdentifier = AppConstants.reminderNotificationCategory
         content.userInfo = [
             "reminderID": reminder.id.uuidString,
             "reminderType": reminder.type.rawValue,

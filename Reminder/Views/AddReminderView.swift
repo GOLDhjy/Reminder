@@ -12,6 +12,8 @@ struct AddReminderView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    var reminder: Reminder?
+
     @State private var title = ""
     @State private var notes = ""
     @State private var selectedType: ReminderType = .custom
@@ -21,9 +23,44 @@ struct AddReminderView: View {
     @State private var startDate = Date()
     @State private var hasEndDate = false
     @State private var endDate = Date()
+    @State private var selectedWeekdays: Set<Weekday> = []
 
     @State private var showingTimePicker = false
     @State private var showingRepeatOptions = false
+
+    private var isEditing: Bool {
+        reminder != nil
+    }
+
+    private var navigationTitle: String {
+        isEditing ? "编辑提醒" : "添加提醒"
+    }
+
+    init() {
+        self.reminder = nil
+    }
+
+    init(reminder: Reminder) {
+        self.reminder = reminder
+
+        // Initialize state with existing reminder values
+        _title = State(initialValue: reminder.title)
+        _notes = State(initialValue: reminder.notes ?? "")
+        _selectedType = State(initialValue: reminder.type)
+        _selectedTime = State(initialValue: reminder.timeOfDay)
+        _selectedRepeatRule = State(initialValue: reminder.repeatRule)
+        _excludeHolidays = State(initialValue: reminder.excludeHolidays)
+        _startDate = State(initialValue: reminder.startDate)
+
+        if let endDate = reminder.endDate {
+            _hasEndDate = State(initialValue: true)
+            _endDate = State(initialValue: endDate)
+        }
+
+        if case .weekly(let weekdays) = reminder.repeatRule {
+            _selectedWeekdays = State(initialValue: Set(weekdays))
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -33,7 +70,7 @@ struct AddReminderView: View {
                 repeatSettingsSection
                 quickTemplatesSection
             }
-            .navigationTitle("添加提醒")
+            .navigationTitle(navigationTitle)
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -43,8 +80,12 @@ struct AddReminderView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        saveReminder()
+                    Button(isEditing ? "更新" : "保存") {
+                        if isEditing {
+                            updateReminder()
+                        } else {
+                            saveReminder()
+                        }
                     }
                     .disabled(title.isEmpty)
                 }
@@ -147,6 +188,43 @@ struct AddReminderView: View {
         }
     }
 
+    private func updateReminder() {
+        guard let reminder = reminder else { return }
+
+        // Update properties
+        reminder.title = title
+        reminder.notes = notes.isEmpty ? nil : notes
+        reminder.type = selectedType
+        reminder.timeOfDay = selectedTime
+        reminder.repeatRule = selectedRepeatRule
+        reminder.excludeHolidays = excludeHolidays
+        reminder.startDate = startDate
+        reminder.updatedAt = Date()
+
+        if hasEndDate {
+            reminder.endDate = endDate
+        } else {
+            reminder.endDate = nil
+        }
+
+        do {
+            try modelContext.save()
+
+            // Reschedule notification
+            Task {
+                if reminder.isActive {
+                    try await NotificationManager.shared.scheduleNotification(for: reminder)
+                } else {
+                    NotificationManager.shared.cancelNotification(for: reminder)
+                }
+            }
+
+            dismiss()
+        } catch {
+            print("Failed to update reminder: \(error)")
+        }
+    }
+
     private var basicInfoSection: some View {
         Section(header: Text("基本信息")) {
             // Title
@@ -245,6 +323,7 @@ struct AddReminderView: View {
         case .rest: return .green
         case .sleep: return .purple
         case .medicine: return .red
+        case .exercise: return .mint
         case .custom: return .gray
         }
     }

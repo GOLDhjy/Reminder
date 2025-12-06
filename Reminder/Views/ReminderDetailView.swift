@@ -231,6 +231,7 @@ struct ReminderDetailView: View {
         case .rest: return .green
         case .sleep: return .purple
         case .medicine: return .red
+        case .exercise: return .mint
         case .custom: return .gray
         }
     }
