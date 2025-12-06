@@ -9,9 +9,9 @@ import Intents
 import IntentsUI
 
 // Simple intent handler for basic Siri integration
-class IntentHandler: NSObject, INExtension {
+class IntentHandler: INExtension {
 
-    func handler(for intent: INIntent) -> Any {
+    override func handler(for intent: INIntent) -> Any {
         return self
     }
 }
