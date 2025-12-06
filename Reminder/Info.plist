@@ -2,7 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.gold.reminder</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>reminder</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
-	<array/>
+	<array>
+		<string>background-processing</string>
+		<string>remote-notification</string>
+	</array>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>此应用需要发送通知来提醒您的日常生活事项，如喝水、吃饭、休息、睡觉和吃药等。</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>访问日历是为了检查节假日，以便在节假日排除提醒。</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
