@@ -25,7 +25,7 @@ class SiriIntentsManager: NSObject, ObservableObject {
         timeInterval: TimeInterval,
         repeatOption: String?,
         reminderType: String?
-    ) -> Bool {
+    ) async -> Bool {
         guard let modelContext = modelContext else { return false }
 
         // Parse time
@@ -87,7 +87,7 @@ class SiriIntentsManager: NSObject, ObservableObject {
     }
 
     // Get reminders for Siri intent
-    func getReminders() -> [String] {
+    func getReminders() async -> [String] {
         guard let modelContext = modelContext else { return [] }
 
         do {

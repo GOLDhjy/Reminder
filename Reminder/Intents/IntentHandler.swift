@@ -8,61 +8,40 @@
 import Intents
 import IntentsUI
 
-class IntentHandler: NSObject, INExtensionRequestHandling {
+// Simple intent handler for basic Siri integration
+class IntentHandler: NSObject, INExtension {
 
     func handler(for intent: INIntent) -> Any {
-        // This will be called to handle the intent when the user requests it from Siri
         return self
     }
 }
 
+// Handle INAddTasksIntent for creating reminders
 extension IntentHandler: INAddTasksIntentHandling {
 
     func handle(intent: INAddTasksIntent) async -> INAddTasksIntentResponse {
-        guard let title = intent.title?.spokenPhrase else {
-            let response = INAddTasksIntentResponse(code: .failure, userActivity: nil)
-            response.failureReason = "无法理解提醒内容"
-            return response
+        guard let taskTitles = intent.taskTitles, !taskTitles.isEmpty,
+              let firstTask = taskTitles.first else {
+            return INAddTasksIntentResponse(code: .failure, userActivity: nil)
         }
 
-        // Extract time information
-        let timeInterval = intent.temporalEvent?.date?.timeIntervalSinceNow ?? 0
-        let repeatOption = intent.temporalEvent?.recurrenceRule?.frequency?.spokenPhrase
-        let reminderType = intent.target?.spokenPhrase
+        let title = firstTask.spokenPhrase
 
         // Use SiriIntentsManager to handle the intent
-        let success = SiriIntentsManager.shared.handleAddReminderIntent(
+        let success = await SiriIntentsManager.shared.handleAddReminderIntent(
             title: title,
-            timeInterval: timeInterval,
-            repeatOption: repeatOption,
-            reminderType: reminderType
+            timeInterval: 0,
+            repeatOption: nil,
+            reminderType: nil
         )
 
-        let response = INAddTasksIntentResponse(code: success ? .success : .failure, userActivity: nil)
-
-        if !success {
-            response.failureReason = "无法创建提醒"
-        }
-
-        return response
+        return INAddTasksIntentResponse(code: success ? .success : .failure, userActivity: nil)
     }
-}
 
-extension IntentHandler: INSearchForItemsIntentHandling {
-
-    func handle(intent: INSearchForItemsIntent) async -> INSearchForItemsIntentResponse {
-        // Return all reminders
-        let reminders = SiriIntentsManager.shared.getReminders()
-
-        let response = INSearchForItemsIntentResponse(code: .success, userActivity: nil)
-
-        // Create INTask objects for each reminder
-        response.tasks = reminders.map { title in
-            let task = INTask()
-            task.title = INSpeakableString(spokenPhrase: title)
-            return task
+    func resolveTaskTitles(for intent: INAddTasksIntent) async -> INStringResolutionResult {
+        guard let taskTitles = intent.taskTitles, !taskTitles.isEmpty else {
+            return INStringResolutionResult.needsValue()
         }
-
-        return response
+        return INStringResolutionResult.success(with: taskTitles.first?.spokenPhrase ?? "")
     }
 }
