@@ -89,7 +89,7 @@ struct ContentView: View {
                             Text("还没有提醒")
                                 .font(.title2)
                                 .foregroundColor(.gray)
-                            Text("点击右上角的 + 添加您的第一个生活提醒")
+                            Text("点击右上角的 + 添加您的第一个提醒")
                                 .font(.body)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -99,7 +99,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("生活提醒")
+            .navigationTitle("小帮手")
             .toolbar {
 #if os(iOS)
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

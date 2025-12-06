@@ -72,7 +72,7 @@ class NotificationManager: ObservableObject {
 
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = "生活提醒"
+        content.title = "小帮手"
         content.subtitle = reminder.title
         content.body = reminder.notes ?? "是时候\(reminder.title)了"
         content.sound = .default
