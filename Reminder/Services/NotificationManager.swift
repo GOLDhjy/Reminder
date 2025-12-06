@@ -1,6 +1,9 @@
 import Foundation
 import UserNotifications
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 class NotificationManager: ObservableObject {
@@ -224,9 +227,11 @@ class NotificationManager: ObservableObject {
 
     // Clear application badge
     private func clearBadge() async {
+        #if os(iOS)
         await MainActor.run {
             UIApplication.shared.applicationIconBadgeNumber = 0
         }
+        #endif
     }
 
     // Schedule a snooze notification

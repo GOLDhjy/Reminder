@@ -40,7 +40,9 @@ struct ReminderApp: App {
             ContentView()
                 .onAppear {
                     // Clear badge on app launch
+                    #if os(iOS)
                     UIApplication.shared.applicationIconBadgeNumber = 0
+                    #endif
                     setupServices()
                     requestNotificationPermission()
                 }
