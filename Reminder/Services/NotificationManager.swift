@@ -72,11 +72,11 @@ class NotificationManager: ObservableObject {
 
         // Create notification content
         let content = UNMutableNotificationContent()
-        content.title = "小帮手"
+        content.title = AppConstants.appName
         content.subtitle = reminder.title
         content.body = reminder.notes ?? "是时候\(reminder.title)了"
         content.sound = .default
-        content.categoryIdentifier = "REMINDER_CATEGORY"
+        content.categoryIdentifier = AppConstants.reminderNotificationCategory
         content.userInfo = [
             "reminderID": reminder.id.uuidString,
             "reminderType": reminder.type.rawValue
@@ -84,19 +84,19 @@ class NotificationManager: ObservableObject {
 
         // Add actions
         let completeAction = UNNotificationAction(
-            identifier: "COMPLETE_ACTION",
+            identifier: AppConstants.completeActionIdentifier,
             title: "已完成",
             options: []
         )
 
         let snoozeAction = UNNotificationAction(
-            identifier: "SNOOZE_ACTION",
+            identifier: AppConstants.snoozeActionIdentifier,
             title: "延迟5分钟",
             options: []
         )
 
         let category = UNNotificationCategory(
-            identifier: "REMINDER_CATEGORY",
+            identifier: AppConstants.reminderNotificationCategory,
             actions: [completeAction, snoozeAction],
             intentIdentifiers: [],
             options: .customDismissAction
@@ -184,9 +184,9 @@ class NotificationManager: ObservableObject {
         // Create log entry
         let log: ReminderLog
         switch response.actionIdentifier {
-        case "COMPLETE_ACTION":
+        case AppConstants.completeActionIdentifier:
             log = ReminderLog(action: .completed, notes: "用户点击了已完成")
-        case "SNOOZE_ACTION":
+        case AppConstants.snoozeActionIdentifier:
             log = ReminderLog(action: .snoozed, notes: "用户延迟了5分钟")
             // Schedule snooze notification
             try? await scheduleSnoozeNotification(for: reminder)
@@ -206,7 +206,7 @@ class NotificationManager: ObservableObject {
         reminder.updatedAt = Date()
 
         // Schedule next notification if not completed
-        if response.actionIdentifier != "COMPLETE_ACTION" {
+        if response.actionIdentifier != AppConstants.completeActionIdentifier {
             try? await scheduleNotification(for: reminder)
         }
 
@@ -216,7 +216,7 @@ class NotificationManager: ObservableObject {
     // Schedule a snooze notification
     private func scheduleSnoozeNotification(for reminder: Reminder) async throws {
         let content = UNMutableNotificationContent()
-        content.title = "延迟提醒"
+        content.title = AppConstants.appName
         content.body = "是时候\(reminder.title)了（延迟5分钟）"
         content.sound = .default
         content.userInfo = [
@@ -225,8 +225,8 @@ class NotificationManager: ObservableObject {
             "isSnooze": true
         ]
 
-        // Trigger after 5 minutes
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 300, repeats: false)
+        // Trigger after default snooze interval
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: AppConstants.defaultSnoozeInterval, repeats: false)
         let request = UNNotificationRequest(
             identifier: "\(reminder.id.uuidString)-snooze",
             content: content,

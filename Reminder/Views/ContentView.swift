@@ -99,7 +99,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationTitle("小帮手")
+            .navigationTitle(AppConstants.appName)
             .toolbar {
 #if os(iOS)
                 ToolbarItemGroup(placement: .navigationBarTrailing) {

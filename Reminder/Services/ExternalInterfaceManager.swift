@@ -13,7 +13,7 @@ class ExternalInterfaceManager: ObservableObject {
 
     // Handle incoming URL from other apps
     func handleIncomingURL(_ url: URL) async {
-        guard url.scheme == "reminder" else {
+        guard url.scheme == AppConstants.urlScheme else {
             print("Invalid URL scheme: \(url.scheme ?? "nil")")
             return
         }
@@ -301,7 +301,7 @@ class ExternalInterfaceManager: ObservableObject {
 Supported URL Schemes:
 
 1. Add a reminder:
-   reminder://add?title=喝水&time=10:00&repeat=daily&type=water&excludeHolidays=true
+   \(AppConstants.urlScheme)://add?title=喝水&time=10:00&repeat=daily&type=water&excludeHolidays=true
 
    Parameters:
    - title (required): Reminder title
@@ -312,11 +312,11 @@ Supported URL Schemes:
    - excludeHolidays: true/false
 
 2. Toggle reminder:
-   reminder://toggle?id=[UUID]
+   \(AppConstants.urlScheme)://toggle?id=[UUID]
 
 3. Complete reminder:
-   reminder://complete?id=[UUID]
+   \(AppConstants.urlScheme)://complete?id=[UUID]
 
 4. List reminders:
-   reminder://list?type=water
+   \(AppConstants.urlScheme)://list?type=water
 */
