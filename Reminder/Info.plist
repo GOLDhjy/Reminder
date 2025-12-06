@@ -26,5 +26,9 @@
 	<string>访问日历是为了检查节假日，以便在节假日排除提醒。</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleDisplayName</key>
+	<string>黄金生活专家</string>
+	<key>CFBundleName</key>
+	<string>黄金生活专家</string>
 </dict>
 </plist>

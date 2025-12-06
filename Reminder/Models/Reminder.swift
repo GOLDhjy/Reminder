@@ -45,7 +45,11 @@ final class Reminder {
     // Computed property for next trigger date
     var nextTriggerDate: Date? {
         let calculator = RepeatRuleCalculator()
-        let fromDate = lastTriggered ?? Date()
+
+        // For new reminders that haven't been triggered, check from current time
+        // For existing reminders, check from last triggered or now
+        let fromDate = Date()
+
         return calculator.nextTriggerDate(
             from: fromDate,
             rule: repeatRule,

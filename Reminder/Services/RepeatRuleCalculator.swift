@@ -14,8 +14,27 @@ struct RepeatRuleCalculator {
         // Extract time component
         let timeComponents = calendar.dateComponents([.hour, .minute], from: timeOfDay)
 
-        // Start from tomorrow if no last trigger
-        let searchDate = date < startDate ? startDate : calendar.date(byAdding: .day, value: 1, to: date) ?? date
+        // Check if we should start from today or tomorrow
+        var searchDate: Date
+        if date < startDate {
+            searchDate = startDate
+        } else {
+            // Get today's date with the target time
+            let today = calendar.startOfDay(for: date)
+            if let todayWithTime = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                               minute: timeComponents.minute ?? 0,
+                                               second: 0,
+                                               of: today) {
+                // If the target time has passed today, start from tomorrow
+                if todayWithTime <= date {
+                    searchDate = calendar.date(byAdding: .day, value: 1, to: todayWithTime) ?? todayWithTime
+                } else {
+                    searchDate = todayWithTime
+                }
+            } else {
+                searchDate = date
+            }
+        }
 
         // Generate candidate dates up to end date or 1 year from now
         let maxDate = endDate ?? calendar.date(byAdding: .year, value: 1, to: searchDate) ?? searchDate
