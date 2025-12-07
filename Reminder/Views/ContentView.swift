@@ -21,39 +21,13 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var selectedType: ReminderType?
     @State private var editingReminder: Reminder?
-    @State private var centralButtonScale: CGFloat = 1.0
     @State private var showingTimerSheet = false
-    @Namespace private var quickActionNamespace
+    @State private var showingCreateOptions = false
 
     var body: some View {
         NavigationSplitView {
             ZStack(alignment: .bottom) {
             List {
-                // Quick Actions
-                Section {
-                    QuickActionButton(
-                        title: "定时任务",
-                        subtitle: "立即开始一个倒计时提醒",
-                        systemImage: "timer",
-                        tint: .orange,
-                        namespace: quickActionNamespace
-                    ) {
-                        showingTimerSheet = true
-                    }
-
-                    QuickActionButton(
-                        title: "添加提醒",
-                        subtitle: "设定具体时间与重复规则",
-                        systemImage: "plus.circle.fill",
-                        tint: AppColors.primary,
-                        namespace: quickActionNamespace
-                    ) {
-                        showingAddReminder = true
-                    }
-                }
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-
                 // Filter Section
                 if !selectedType.isNil {
                     Section(header: Text("筛选：\(selectedType?.rawValue ?? "全部")")) {
@@ -68,9 +42,11 @@ struct ContentView: View {
                 if !activeReminders.isEmpty {
                     Section {
                         ForEach(activeReminders) { reminder in
-                            ReminderRow(reminder: reminder) {
-                                editReminder(reminder)
-                            }
+                            ReminderRow(
+                                reminder: reminder,
+                                onTap: { editReminder(reminder) },
+                                onToggle: { toggleReminder(reminder) }
+                            )
                             .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                             .listRowSeparator(.hidden)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -86,24 +62,12 @@ struct ContentView: View {
                             }
                         }
                     } header: {
-                        HStack {
-                            Image(systemName: "bell.fill")
-                                .foregroundColor(AppColors.primary)
-                            Text("进行中的提醒")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Text("\(activeReminders.count)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(AppColors.primary)
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        SectionHeaderRow(
+                            icon: "bell.fill",
+                            title: "进行中的提醒",
+                            count: activeReminders.count,
+                            tint: AppColors.primary
+                        )
                     }
                 }
 
@@ -111,9 +75,11 @@ struct ContentView: View {
                 if !inactiveReminders.isEmpty {
                     Section {
                         ForEach(inactiveReminders) { reminder in
-                            ReminderRow(reminder: reminder) {
-                                editReminder(reminder)
-                            }
+                            ReminderRow(
+                                reminder: reminder,
+                                onTap: { editReminder(reminder) },
+                                onToggle: { toggleReminder(reminder) }
+                            )
                             .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                             .listRowSeparator(.hidden)
                             .opacity(0.7)
@@ -130,47 +96,31 @@ struct ContentView: View {
                             }
                         }
                     } header: {
-                        HStack {
-                            Image(systemName: "pause.circle.fill")
-                                .foregroundColor(AppColors.custom)
-                            Text("已暂停/完成")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Text("\(inactiveReminders.count)")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(AppColors.custom)
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        SectionHeaderRow(
+                            icon: "pause.circle.fill",
+                            title: "已暂停/完成",
+                            count: inactiveReminders.count,
+                            tint: AppColors.custom
+                        )
                     }
                 }
 
                 // Empty state section
                 if reminders.isEmpty {
                     Section {
-                        VStack(spacing: 24) {
-                            // Animated icon
+                        VStack(spacing: 20) {
                             ZStack {
                                 Circle()
                                     .fill(AppColors.primary.opacity(0.1))
-                                    .frame(width: 120, height: 120)
-
+                                    .frame(width: 110, height: 110)
                                 Image(systemName: "bell.fill")
-                                    .font(.system(size: 50))
+                                    .font(.system(size: 48))
                                     .foregroundColor(AppColors.primary)
                             }
-                            .scaleEffect(1.0)
-                            .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: true)
 
-                            VStack(spacing: 12) {
+                            VStack(spacing: 10) {
                                 Text("开始使用\(AppConstants.appName)")
-                                    .font(.title2)
+                                    .font(.title3)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.primary)
 
@@ -180,38 +130,8 @@ struct ContentView: View {
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, 20)
                             }
-
-                            // Central floating button hint
-                            Button(action: {
-                                showingAddReminder = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.title3)
-                                    Text("创建第一个提醒")
-                                        .font(.headline)
-                                }
-                                .foregroundColor(.primary)
-                                .padding(.horizontal, 32)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 30)
-                                        .fill(AppColors.iconBackgroundDark)
-                                        .shadow(color: AppColors.shadow, radius: 8, x: 0, y: 4)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .scaleEffect(centralButtonScale)
-                            .onAppear {
-                                if reminders.isEmpty {
-                                    withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                                        centralButtonScale = 1.05
-                                    }
-                                }
-                            }
-                            .padding(.top, 10)
                         }
-                        .padding(.vertical, 50)
+                        .padding(.vertical, 40)
                         .frame(maxWidth: .infinity)
                     }
                 }
@@ -298,38 +218,22 @@ struct ContentView: View {
             .sheet(item: $editingReminder) { reminder in
                 AddReminderView(reminder: reminder)
             }
-
-            // Floating Add Button for iOS
-            #if os(iOS)
-            if !reminders.isEmpty {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            showingAddReminder = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(AppColors.iconBackgroundDark)
-                                    .frame(width: 56, height: 56)
-                                    .shadow(color: AppColors.shadow, radius: 10, x: 0, y: 5)
-
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.primary)
-                                    .rotationEffect(.degrees(showingAddReminder ? 45 : 0))
-                            }
+            .sheet(isPresented: $showingCreateOptions) {
+                CreateChooserSheet(
+                    onSelectTimer: {
+                        showingCreateOptions = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showingTimerSheet = true
                         }
-                        .scaleEffect(showingAddReminder ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showingAddReminder)
-                        Spacer()
+                    },
+                    onSelectReminder: {
+                        showingCreateOptions = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showingAddReminder = true
+                        }
                     }
-                    .padding(.bottom, 30)
-                }
+                )
             }
-            #endif
 
 #if os(macOS)
             .navigationSplitViewColumnWidth(min: 300, ideal: 350)
@@ -349,6 +253,27 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        // Bottom primary action
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                showingCreateOptions = true
+            } label: {
+                Text("＋ 新建提醒")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(AppColors.primary)
+                    )
+                    .padding(.horizontal, 20)
+                    .shadow(color: AppColors.primary.opacity(0.35), radius: 12, x: 0, y: 6)
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 10)
+            .padding(.top, 6)
         }
     }
 
@@ -456,6 +381,7 @@ struct ContentView: View {
 struct ReminderRow: View {
     let reminder: Reminder
     let onTap: () -> Void
+    let onToggle: () -> Void
 
     // 计算距离下次提醒的剩余时间
     private func timeUntil(_ date: Date) -> String {
@@ -467,138 +393,82 @@ struct ReminderRow: View {
         }
 
         let totalSeconds = Int(interval)
-        let days = totalSeconds / (24 * 60 * 60)
         let hours = (totalSeconds % (24 * 60 * 60)) / (60 * 60)
         let minutes = (totalSeconds % (60 * 60)) / 60
 
-        var components: [String] = []
-
-        if days > 0 {
-            components.append("\(days)天")
-        }
         if hours > 0 {
-            components.append("\(hours)小时")
+            return "\(hours)小时\(minutes)分后"
         }
-        if minutes > 0 {
-            components.append("\(minutes)分钟")
-        }
+        return "\(minutes)分钟后"
+    }
 
-        if components.isEmpty {
-            return "1分钟内"
-        }
-
-        return components.joined() + "后"
+    private var toggleBinding: Binding<Bool> {
+        Binding(
+            get: { reminder.isActive },
+            set: { _ in onToggle() }
+        )
     }
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 0) {
-                HStack(alignment: .top, spacing: 16) {
-                    // Icon with background
-                    ZStack {
-                        Circle()
-                            .fill(AppColors.colorForType(reminder.type).opacity(0.15))
-                            .frame(width: 50, height: 50)
+        ZStack {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(AppColors.cardBackground)
+                .shadow(color: AppColors.shadow, radius: 12, x: 0, y: 6)
 
-                        Image(systemName: reminder.type.icon)
-                            .font(.title3)
-                            .foregroundColor(AppColors.colorForType(reminder.type))
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(AppColors.colorForType(reminder.type).opacity(0.16))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: reminder.type.icon)
+                        .foregroundColor(AppColors.colorForType(reminder.type))
+                        .font(.headline)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(reminder.title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "repeat")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(reminder.repeatRule.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("·")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(reminder.timeOfDay, style: .time)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        // Title with status
-                        HStack {
-                            Text(reminder.title)
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-
-                            Spacer()
-
-                            // Status badge
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(reminder.isActive ? AppColors.colorForType(reminder.type) : AppColors.custom)
-                                    .frame(width: 6, height: 6)
-
-                                Text(reminder.isActive ? "进行中" : "已暂停")
-                                    .font(.caption2)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(reminder.isActive ? AppColors.colorForType(reminder.type) : AppColors.custom)
-                            }
-                        }
-
-                        // Time and repeat info
-                        HStack(spacing: 12) {
-                            // Time
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                Text(reminder.timeOfDay, style: .time)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            // Repeat rule
-                            Label(reminder.repeatRule.description, systemImage: "repeat")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            Spacer()
-
-                            // Next trigger with prominence
-                            if let nextTrigger = reminder.nextTriggerDate {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "bell")
-                                        .font(.caption)
-                                    Text(timeUntil(nextTrigger))
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(AppColors.colorForType(reminder.type).opacity(0.1))
-                                .foregroundColor(AppColors.colorForType(reminder.type))
-                                .clipShape(Capsule())
-                            }
-                        }
-
-                        // Notes if available
-                        if let notes = reminder.notes, !notes.isEmpty {
-                            Text(notes)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(2)
-                                .padding(.top, 2)
-                        }
+                    if let nextTrigger = reminder.nextTriggerDate {
+                        Text(timeUntil(nextTrigger))
+                            .font(.caption2)
+                            .foregroundColor(AppColors.colorForType(reminder.type))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(AppColors.colorForType(reminder.type).opacity(0.12))
+                            .clipShape(Capsule())
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
 
-                // Bottom accent line
-                Rectangle()
-                    .fill(AppColors.colorForType(reminder.type))
-                    .frame(height: 3)
-                    .opacity(reminder.isActive ? 0.8 : 0.3)
+                Spacer()
+
+                Toggle("", isOn: toggleBinding)
+                    .labelsHidden()
+                    .tint(AppColors.primary)
             }
-            .background(AppColors.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .shadow(
-                color: Color.black.opacity(0.04),
-                radius: 15,
-                x: 0,
-                y: 4
-            )
-            .shadow(
-                color: Color.black.opacity(0.02),
-                radius: 1,
-                x: 0,
-                y: 1
-            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
-        .buttonStyle(PlainButtonStyle())
+        .onTapGesture {
+            onTap()
+        }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
     }
@@ -606,23 +476,70 @@ struct ReminderRow: View {
 
 // MARK: - Quick Action Button
 private struct QuickActionButton: View {
+    // Deprecated placeholder to avoid unused struct - kept empty intentionally
+    var body: some View { EmptyView() }
+}
+
+// MARK: - Create Chooser Sheet
+private struct CreateChooserSheet: View {
+    let onSelectTimer: () -> Void
+    let onSelectReminder: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Capsule()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 40, height: 4)
+                .padding(.top, 12)
+
+            Text("创建类型")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            VStack(spacing: 12) {
+                CreateOptionCard(
+                    title: "定时任务",
+                    subtitle: "倒计时提醒",
+                    systemImage: "timer",
+                    tint: AppColors.warning,
+                    action: onSelectTimer
+                )
+
+                CreateOptionCard(
+                    title: "添加提醒",
+                    subtitle: "自定义时间",
+                    systemImage: "plus.circle",
+                    tint: AppColors.primary,
+                    action: onSelectReminder
+                )
+            }
+            .padding(.horizontal, 16)
+
+            Spacer()
+        }
+        .padding(.bottom, 20)
+        .background(AppColors.background)
+        .presentationDetents([.medium, .fraction(0.55)])
+    }
+}
+
+private struct CreateOptionCard: View {
     let title: String
     let subtitle: String
     let systemImage: String
     let tint: Color
-    var namespace: Namespace.ID
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
                 ZStack {
-                    Circle()
-                        .fill(tint.opacity(0.16))
-                        .frame(width: 44, height: 44)
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(tint.opacity(0.18))
+                        .frame(width: 46, height: 46)
                     Image(systemName: systemImage)
                         .foregroundColor(tint)
-                        .font(.headline)
+                        .font(.title2.weight(.semibold))
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -635,19 +552,63 @@ private struct QuickActionButton: View {
                 }
 
                 Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.secondary)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 16)
                     .fill(AppColors.cardElevated)
-                    .shadow(color: AppColors.shadow, radius: 14, x: 0, y: 6)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(tint.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: AppColors.shadow, radius: 10, x: 0, y: 5)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct SectionHeaderRow: View {
+    let icon: String
+    let title: String
+    let count: Int
+    let tint: Color
+
+    var body: some View {
+        HStack {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.16))
+                    .frame(width: 32, height: 32)
+                Image(systemName: icon)
+                    .foregroundColor(tint)
+            }
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(tint)
+                )
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(AppColors.cardElevated)
+        )
+        .padding(.horizontal, 8)
+        .padding(.top, 6)
     }
 }
 

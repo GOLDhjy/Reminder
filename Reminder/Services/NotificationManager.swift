@@ -225,7 +225,16 @@ class NotificationManager: ObservableObject {
         reminder.lastTriggered = Date()
         reminder.updatedAt = Date()
 
-        // Schedule next notification if not completed
+        // If non-repeating, remove after first trigger
+        if case .never = reminder.repeatRule {
+            cancelNotification(for: reminder)
+            modelContext.delete(reminder)
+            try? modelContext.save()
+            await clearBadge()
+            return
+        }
+
+        // Schedule next notification if not completed and repeating
         if response.actionIdentifier != AppConstants.completeActionIdentifier {
             try? await scheduleNotification(for: reminder)
         }

@@ -106,6 +106,28 @@ struct TimerTaskSheet: View {
                 .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+
+        // Bottom primary button for clarity
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                createTimerReminder()
+            } label: {
+                Text("开始计时")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(AppColors.primary)
+                    )
+                    .padding(.horizontal, 20)
+                    .shadow(color: AppColors.primary.opacity(0.35), radius: 10, x: 0, y: 5)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+            .padding(.bottom, 10)
+        }
     }
 
     private var header: some View {

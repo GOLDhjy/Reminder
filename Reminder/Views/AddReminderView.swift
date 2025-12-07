@@ -65,13 +65,27 @@ struct AddReminderView: View {
     var body: some View {
 #if os(iOS)
         NavigationStack {
-            Form {
-                basicInfoSection
-                timeSettingsSection
-                repeatSettingsSection
-                quickTemplatesSection
+            ZStack {
+                AppColors.background.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 20) {
+                        headerCard
+
+                        typeGridSection
+                        titleSection
+                        repeatChipsSection
+                        timeCardSection
+                        notesSection
+                        quickTemplatesSection
+
+                        saveButton
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
+                }
             }
-            .navigationTitle(navigationTitle)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -363,6 +377,247 @@ struct AddReminderView: View {
 
     private func colorForType(_ type: ReminderType) -> Color {
         return AppColors.colorForType(type)
+    }
+}
+
+// MARK: - iOS Styled Sections
+private extension AddReminderView {
+    var headerCard: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(AppColors.primary.opacity(0.18))
+                    .frame(width: 72, height: 72)
+                    .shadow(color: AppColors.shadow, radius: 6, x: 0, y: 3)
+                Image(systemName: "leaf.fill")
+                    .foregroundColor(AppColors.primary)
+                    .font(.title2.weight(.bold))
+            }
+            Text(navigationTitle)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            Text("设置任务名称、重复规则和时间")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(AppColors.cardElevated)
+        )
+        .shadow(color: AppColors.shadow, radius: 10, x: 0, y: 4)
+    }
+
+    var typeGridSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("任务类型")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(ReminderType.allCases, id: \.self) { type in
+                    Button {
+                        selectedType = type
+                    } label: {
+                        HStack {
+                            Image(systemName: type.icon)
+                                .font(.headline)
+                                .foregroundColor(AppColors.colorForType(type))
+                            Text(type.rawValue)
+                                .font(.subheadline)
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(selectedType == type ? AppColors.colorForType(type).opacity(0.15) : AppColors.cardBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(selectedType == type ? AppColors.colorForType(type) : Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .shadow(color: AppColors.shadow, radius: 6, x: 0, y: 3)
+                }
+            }
+        }
+    }
+
+    var titleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("任务名称")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            TextField("例如：运动一下", text: $title)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(AppColors.cardBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+
+    var repeatChipsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("重复规则")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(RepeatRule.allCases, id: \.self) { rule in
+                        Button {
+                            selectedRepeatRule = rule
+                            showingRepeatOptions = (rule != .never && rule != .daily && {
+                                if case .weekly = rule { return false }
+                                if case .monthly = rule { return false }
+                                if case .yearly = rule { return false }
+                                return true
+                            }())
+                        } label: {
+                            Text(rule.shortDescription)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule().fill(rule == selectedRepeatRule ? AppColors.primary.opacity(0.15) : AppColors.cardBackground)
+                                )
+                                .overlay(
+                                    Capsule().stroke(rule == selectedRepeatRule ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                                .foregroundColor(.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        showingRepeatOptions = true
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule().fill(AppColors.cardBackground)
+                            )
+                            .overlay(
+                                Capsule().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    var timeCardSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("提醒时间")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Button {
+                showingTimePicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "clock")
+                        .foregroundColor(AppColors.primary)
+                    Text(selectedTime, style: .time)
+                        .font(.title2).fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.secondary)
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(AppColors.cardElevated)
+                )
+                .shadow(color: AppColors.shadow, radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("开始日期")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    DatePicker("", selection: $startDate, displayedComponents: .date)
+                        .labelsHidden()
+                }
+
+                Divider().frame(height: 44)
+
+                Toggle("结束日期", isOn: $hasEndDate)
+                    .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
+
+                if hasEndDate {
+                    DatePicker("", selection: $endDate, displayedComponents: .date)
+                        .labelsHidden()
+                }
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(AppColors.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+            )
+        }
+    }
+
+    var notesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("备注")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            TextField("补充说明（可选）", text: $notes, axis: .vertical)
+                .lineLimit(3, reservesSpace: true)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(AppColors.cardBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                )
+        }
+    }
+
+    var saveButton: some View {
+        Button {
+            if isEditing { updateReminder() } else { saveReminder() }
+        } label: {
+            Text(isEditing ? "保存修改" : "种下控桩")
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(AppColors.primary)
+                )
+                .shadow(color: AppColors.primary.opacity(0.35), radius: 12, x: 0, y: 6)
+        }
+        .padding(.top, 8)
+        .buttonStyle(.plain)
+        .disabled(title.isEmpty)
+        .opacity(title.isEmpty ? 0.5 : 1)
     }
 }
 

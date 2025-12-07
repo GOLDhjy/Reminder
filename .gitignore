@@ -1,1 +1,8 @@
 .claude/settings.json
+
+# Xcode / DerivedData
+DerivedData/
+**/DerivedData/
+*.xcuserstate
+*.xcuserdata/
+xcshareddata/
