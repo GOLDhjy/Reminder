@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showingAbout = false
 
     var body: some View {
+#if os(iOS)
         NavigationView {
             Form {
                 // Notifications Section
@@ -125,23 +126,13 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
-            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
-                #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
                         dismiss()
                     }
                 }
-                #else
-                ToolbarItem(placement: .primaryAction) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                }
-                #endif
             }
             .sheet(isPresented: $showingHolidayManagement) {
                 HolidayManagementView()
@@ -153,13 +144,158 @@ struct SettingsView: View {
                 AboutView()
             }
         }
+#else
+        VStack(alignment: .leading, spacing: 20) {
+            // Title
+            Text("设置")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .padding(.horizontal)
+
+            Form {
+                // Notifications Section
+                Section(header: Text("通知设置")) {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("通知权限")
+                            Text(notificationManager.isAuthorized ? "已授权" : "未授权")
+                                .font(.caption)
+                                .foregroundColor(notificationManager.isAuthorized ? .green : .red)
+                        }
+                        Spacer()
+                        Button(notificationManager.isAuthorized ? "已开启" : "开启通知") {
+                            if !notificationManager.isAuthorized {
+                                Task {
+                                    try? await notificationManager.requestAuthorization()
+                                }
+                            }
+                        }
+                        .disabled(notificationManager.isAuthorized)
+                        .foregroundColor(notificationManager.isAuthorized ? .gray : .blue)
+                    }
+
+                    HStack {
+                        Text("通知预览")
+                        Spacer()
+                        Button("测试通知") {
+                            sendTestNotification()
+                        }
+                        .foregroundColor(.blue)
+                    }
+                }
+
+                // Holiday Management Section
+                Section(header: Text("节假日管理")) {
+                    Button(action: { showingHolidayManagement = true }) {
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.orange)
+                            Text("节假日设置")
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+
+                // Data Management Section
+                Section(header: Text("数据管理")) {
+                    Button(action: { showingExportOptions = true }) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                                .foregroundColor(.blue)
+                            Text("导出提醒数据")
+                        }
+                    }
+                    .foregroundColor(.primary)
+
+                    Button(action: rescheduleAllNotifications) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                                .foregroundColor(.green)
+                            Text("重新调度所有通知")
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+
+                // URL Scheme Documentation
+                Section(header: Text("外部接口")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("URL Scheme: reminder://")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+
+                        Text("其他应用可以通过 URL Scheme 添加提醒：")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+
+                        Text("reminder://add?title=喝水&time=10:00&repeat=daily")
+                            .font(.caption2)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                }
+
+                // About Section
+                Section(header: Text("关于")) {
+                    Button(action: { showingAbout = true }) {
+                        HStack {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.gray)
+                            Text("关于生活提醒")
+                        }
+                    }
+                    .foregroundColor(.primary)
+
+                    HStack {
+                        Text("版本")
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+
+            Spacer()
+
+            // Close button
+            HStack {
+                Spacer()
+                Button("完成") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+        .frame(minWidth: 500, minHeight: 600)
+        .sheet(isPresented: $showingHolidayManagement) {
+            HolidayManagementView()
+        }
+        .sheet(isPresented: $showingExportOptions) {
+            ExportOptionsView()
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
+        }
+#endif
     }
 
     private func sendTestNotification() {
         let content = UNMutableNotificationContent()
-        content.title = "测试通知"
-        content.body = "这是一个测试通知，用于确认通知功能正常工作"
+        content.title = "🔔 测试通知"
+        content.body = "小帮手测试通知 - 检查图标是否正常显示"
         content.sound = .default
+        content.interruptionLevel = .critical
+
+        // Add bundle identifier to help debug
+        content.userInfo = [
+            "test": true,
+            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "unknown"
+        ]
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
@@ -171,6 +307,9 @@ struct SettingsView: View {
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
                 print("Failed to send test notification: \(error)")
+            } else {
+                print("Test notification scheduled successfully")
+                print("Bundle identifier: \(Bundle.main.bundleIdentifier ?? "unknown")")
             }
         }
     }
@@ -185,6 +324,22 @@ struct SettingsView: View {
             }
         }
     }
+
+    private func checkNotificationStatus() {
+        #if os(iOS)
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            print("\n=== 通知设置状态 ===")
+            print("授权状态: \(settings.authorizationStatus)")
+            print("提醒设置: \(settings.alertSetting)")
+            print("声音设置: \(settings.soundSetting)")
+            print("角标设置: \(settings.badgeSetting)")
+            print("锁屏设置: \(settings.lockScreenSetting)")
+            print("通知中心设置: \(settings.notificationCenterSetting)")
+            print("横幅设置: \(settings.alertSetting)")
+            print("==================\n")
+        }
+        #endif
+    }
 }
 
 // MARK: - Holiday Management View
@@ -197,7 +352,7 @@ struct HolidayManagementView: View {
     @State private var selectedYear = Calendar.current.component(.year, from: Date())
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("节假日设置")) {
                     Picker("国家/地区", selection: $selectedCountry) {
@@ -247,35 +402,17 @@ struct HolidayManagementView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("节假日管理")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                }
-                #else
-                ToolbarItemGroup(placement: .navigation) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                    Spacer()
-                    Button("完成") {
-                        dismiss()
-                    }
-                }
-                #endif
             }
         }
+        .frame(minWidth: 400, minHeight: 400)
     }
 }
 
@@ -288,7 +425,7 @@ struct ExportOptionsView: View {
     @State private var includeCompleted = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("导出格式")) {
                     Picker("格式", selection: $exportFormat) {
@@ -313,26 +450,17 @@ struct ExportOptionsView: View {
                     .cornerRadius(8)
                 }
             }
+            .formStyle(.grouped)
             .navigationTitle("导出数据")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
-                #else
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
                         dismiss()
                     }
                 }
-                #endif
             }
         }
+        .frame(minWidth: 400, minHeight: 300)
     }
 
     private func exportReminders() {
@@ -363,7 +491,7 @@ struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 30) {
                 // App Icon
                 Image(systemName: "bell.fill")
@@ -405,25 +533,16 @@ struct AboutView: View {
                     .padding(.bottom)
             }
             .padding()
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
+            .navigationTitle("关于")
             .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("关闭") {
-                        dismiss()
-                    }
-                }
-                #else
                 ToolbarItem(placement: .primaryAction) {
                     Button("关闭") {
                         dismiss()
                     }
                 }
-                #endif
             }
         }
+        .frame(minWidth: 400, minHeight: 400)
     }
 }
 

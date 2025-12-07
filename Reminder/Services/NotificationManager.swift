@@ -28,7 +28,7 @@ class NotificationManager: ObservableObject {
 
     // Request authorization for notifications
     func requestAuthorization() async throws {
-        let options: UNAuthorizationOptions = [.alert, .sound, .badge]
+        let options: UNAuthorizationOptions = [.alert, .sound, .badge, .carPlay, .criticalAlert]
         let granted = try await notificationCenter.requestAuthorization(options: options)
 
         await MainActor.run {
@@ -37,7 +37,16 @@ class NotificationManager: ObservableObject {
         }
 
         if granted {
-            await registerForRemoteNotifications()
+            // Configure notification settings
+            #if os(iOS)
+            await MainActor.run {
+                // Set default notification settings
+                let notificationCenter = UNUserNotificationCenter.current()
+                notificationCenter.getNotificationSettings { settings in
+                    print("Notification settings: \(settings)")
+                }
+            }
+            #endif
         }
     }
 
@@ -77,6 +86,7 @@ class NotificationManager: ObservableObject {
         let content = UNMutableNotificationContent()
         // 在标题前添加类型相关的 emoji
         content.title = "\(reminder.type.emojiIcon) \(reminder.title)"
+        content.body = "该\(reminder.title)了"
 
         // Add rich notification attachments for better appearance
         content.sound = .default
@@ -91,6 +101,7 @@ class NotificationManager: ObservableObject {
         // Set priority to critical for longer display and more prominence
         content.interruptionLevel = .critical
 
+  
         // Add actions with better titles and options
         let completeAction = UNNotificationAction(
             identifier: AppConstants.completeActionIdentifier,

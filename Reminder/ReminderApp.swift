@@ -74,6 +74,25 @@ struct ReminderApp: App {
         Task {
             do {
                 try await notificationManager.requestAuthorization()
+
+                // After getting permission, check and debug notification settings
+                #if os(iOS)
+                let settings = await UNUserNotificationCenter.current().notificationSettings()
+                print("=== Notification Settings Debug ===")
+                print("Authorization status: \(settings.authorizationStatus)")
+                print("Alert setting: \(settings.alertSetting)")
+                print("Sound setting: \(settings.soundSetting)")
+                print("Badge setting: \(settings.badgeSetting)")
+                print("Critical alert setting: \(settings.criticalAlertSetting)")
+                print("Lock screen setting: \(settings.lockScreenSetting)")
+                print("Notification center setting: \(settings.notificationCenterSetting)")
+                print("Car play setting: \(settings.carPlaySetting)")
+
+                // Check app icon configuration
+                print("=== App Icon Debug ===")
+                print("Bundle identifier: \(Bundle.main.bundleIdentifier ?? "unknown")")
+                print("App icon files configured in Info.plist")
+                #endif
             } catch {
                 print("Failed to request notification authorization: \(error)")
             }

@@ -63,7 +63,8 @@ struct AddReminderView: View {
     }
 
     var body: some View {
-        NavigationView {
+#if os(iOS)
+        NavigationStack {
             Form {
                 basicInfoSection
                 timeSettingsSection
@@ -71,7 +72,6 @@ struct AddReminderView: View {
                 quickTemplatesSection
             }
             .navigationTitle(navigationTitle)
-#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -90,19 +90,6 @@ struct AddReminderView: View {
                     .disabled(title.isEmpty)
                 }
             }
-#else
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                    Button("保存") {
-                        saveReminder()
-                    }
-                    .disabled(title.isEmpty)
-                }
-            }
-#endif
             .sheet(isPresented: $showingTimePicker) {
                 TimePickerView(selectedTime: $selectedTime)
             }
@@ -110,6 +97,56 @@ struct AddReminderView: View {
                 RepeatRulePickerView(selectedRule: $selectedRepeatRule)
             }
         }
+#else
+        VStack(alignment: .leading, spacing: 20) {
+            // Title
+            Text(navigationTitle)
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .padding(.horizontal)
+
+            Form {
+                basicInfoSection
+                timeSettingsSection
+                repeatSettingsSection
+                quickTemplatesSection
+            }
+            .formStyle(.grouped)
+            .background(Color(NSColor.controlBackgroundColor))
+            .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+
+            Spacer()
+
+            // Buttons
+            HStack {
+                Button("取消") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+
+                Spacer()
+
+                Button(isEditing ? "更新" : "保存") {
+                    if isEditing {
+                        updateReminder()
+                    } else {
+                        saveReminder()
+                    }
+                }
+                .disabled(title.isEmpty)
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+        }
+        .frame(minWidth: 500, minHeight: 600)
+        .sheet(isPresented: $showingTimePicker) {
+            TimePickerView(selectedTime: $selectedTime)
+        }
+        .sheet(isPresented: $showingRepeatOptions) {
+            RepeatRulePickerView(selectedRule: $selectedRepeatRule)
+        }
+#endif
     }
 
     private var quickTemplates: [ReminderTemplate] {
@@ -345,27 +382,22 @@ struct TimePickerView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+#if os(iOS)
+        NavigationStack {
             VStack {
                 DatePicker(
                     "选择时间",
                     selection: $selectedTime,
                     displayedComponents: .hourAndMinute
                 )
-#if os(iOS)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
-#else
-                .datePickerStyle(.field)
-                .labelsHidden()
-#endif
                 .padding()
 
                 Spacer()
             }
             .padding()
             .navigationTitle("选择时间")
-#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -379,19 +411,43 @@ struct TimePickerView: View {
                     }
                 }
             }
-#else
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                    Button("确定") {
-                        dismiss()
-                    }
-                }
-            }
-#endif
         }
+#else
+        VStack(spacing: 30) {
+            Text("选择时间")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .padding(.top, 20)
+
+            DatePicker(
+                "",
+                selection: $selectedTime,
+                displayedComponents: .hourAndMinute
+            )
+            .datePickerStyle(.stepperField)
+            .labelsHidden()
+            .frame(maxWidth: 300)
+            .padding(.horizontal, 40)
+
+            HStack {
+                Button("取消") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+
+                Spacer()
+
+                Button("确定") {
+                    dismiss()
+                }
+                .keyboardShortcut(.return)
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 20)
+        }
+        .frame(width: 400, height: 200)
+#endif
     }
 }
 
@@ -407,7 +463,8 @@ struct RepeatRulePickerView: View {
 
     
     var body: some View {
-        NavigationView {
+#if os(iOS)
+        NavigationStack {
             Form {
                 Section("预设选项") {
                     ForEach([RepeatRule.never, RepeatRule.daily], id: \.self) { rule in
@@ -472,7 +529,6 @@ struct RepeatRulePickerView: View {
                 }
             }
             .navigationTitle("重复规则")
-#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -481,16 +537,183 @@ struct RepeatRulePickerView: View {
                     }
                 }
             }
+        }
 #else
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button("取消") {
-                        dismiss()
+        VStack(spacing: 20) {
+            Text("选择重复规则")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .padding(.top, 20)
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    // 预设选项
+                    VStack(spacing: 8) {
+                        Text("预设选项")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+
+                        ForEach([RepeatRule.never, RepeatRule.daily], id: \.self) { rule in
+                            Button(action: {
+                                selectedRule = rule
+                                dismiss()
+                            }) {
+                                HStack {
+                                    Text(rule.description)
+                                        .font(.body)
+                                    Spacer()
+                                    if selectedRule == rule {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.blue)
+                                    } else {
+                                        Image(systemName: "circle")
+                                            .foregroundColor(.gray.opacity(0.5))
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(NSColor.controlBackgroundColor))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(selectedRule == rule ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == rule ? 2 : 1)
+                                        )
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+
+                    // 每周选项
+                    VStack(spacing: 8) {
+                        Text("每周")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+
+                        Button(action: {
+                            selectedRule = .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
+                            dismiss()
+                        }) {
+                            HStack {
+                                Text("工作日（周一到周五）")
+                                    .font(.body)
+                                Spacer()
+                                if selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.blue)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(NSColor.controlBackgroundColor))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) ? 2 : 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Button(action: {
+                            selectedRule = .weekly([.saturday, .sunday])
+                            dismiss()
+                        }) {
+                            HStack {
+                                Text("周末（周六和周日）")
+                                    .font(.body)
+                                Spacer()
+                                if selectedRule == .weekly([.saturday, .sunday]) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.blue)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(NSColor.controlBackgroundColor))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(selectedRule == .weekly([.saturday, .sunday]) ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == .weekly([.saturday, .sunday]) ? 2 : 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+
+                    // 每月选项
+                    VStack(spacing: 8) {
+                        Text("每月")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 10)
+
+                        Menu {
+                            ForEach(1...31, id: \.self) { day in
+                                Button("\(day)日") {
+                                    selectedRule = .monthly(day)
+                                    dismiss()
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Text("每月第几天")
+                                    .font(.body)
+                                Spacer()
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(NSColor.controlBackgroundColor))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
+                .padding(.bottom, 20)
             }
-#endif
+            .frame(maxHeight: 350)
+
+            Divider()
+                .padding(.vertical, 10)
+
+            // 取消按钮
+            HStack {
+                Spacer()
+                Button("取消") {
+                    dismiss()
+                }
+                .keyboardShortcut(.escape)
+                .buttonStyle(.bordered)
+            }
+            .padding()
         }
+        .frame(width: 450, height: 520)
+#endif
     }
 }
 

@@ -16,7 +16,8 @@ class IntentHandler: INExtension {
     }
 }
 
-// Handle INAddTasksIntent for creating reminders
+// Handle INAddTasksIntent for creating reminders (iOS only)
+#if os(iOS)
 extension IntentHandler: INAddTasksIntentHandling {
 
     func handle(intent: INAddTasksIntent) async -> INAddTasksIntentResponse {
@@ -45,3 +46,4 @@ extension IntentHandler: INAddTasksIntentHandling {
         return INStringResolutionResult.success(with: taskTitles.first?.spokenPhrase ?? "")
     }
 }
+#endif

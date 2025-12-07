@@ -118,7 +118,7 @@ struct ContentView: View {
                     }
                 }
 
-                // Empty state
+                // Empty state or always show add button section
                 if reminders.isEmpty {
                     Section {
                         VStack(spacing: 24) {
@@ -157,17 +157,38 @@ struct ContentView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 12)
-                                .background(Color.blue)
-                                .clipShape(Capsule())
+                                .background(
+                                    RoundedRectangle(cornerRadius: 25)
+                                        .fill(Color.blue)
+                                        .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 2)
+                                )
                             }
+                            .buttonStyle(.borderless)
                             .padding(.top, 8)
                         }
                         .padding(.vertical, 50)
                         .frame(maxWidth: .infinity)
                     }
+                } else {
+                    // Always show add button section when there are reminders
+                    Section {
+                        Button(action: { showingAddReminder = true }) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(.blue)
+                                Text("添加新提醒")
+                                    .foregroundColor(.primary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
                 }
             }
-            .listStyle(InsetGroupedListStyle())
+            #if os(iOS)
+            .listStyle(.insetGrouped)
+            #else
+            .listStyle(.automatic)
+            #endif
             .navigationTitle(AppConstants.appName)
             .toolbar {
 #if os(iOS)
@@ -492,7 +513,11 @@ struct ReminderRow: View {
                     .frame(height: 3)
                     .opacity(reminder.isActive ? 0.8 : 0.3)
             }
+            #if os(iOS)
             .background(Color(.systemBackground))
+            #else
+            .background(Color(NSColor.controlBackgroundColor))
+            #endif
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
         }
