@@ -13,7 +13,7 @@ struct AppColors {
     static let iconBackground = Color(red: 247/255, green: 242/255, blue: 230/255)
 
     /// Darker shade of icon background for hover/active states
-    static let iconBackgroundDark = Color(red: 237/255, green: 232/255, blue: 220/255)
+    static let iconBackgroundDark = Color(red: 242/255, green: 237/255, blue: 225/255)
 
     // MARK: - Semantic Colors
     /// Primary accent color (blue)
@@ -22,11 +22,20 @@ struct AppColors {
     /// Secondary accent color (light blue variant)
     static let secondary = iconBackground
 
-    /// Background color for the app
-    static let background = Color(.systemGroupedBackground)
+    /// Background color for the app - warmer cream background
+    static let background = iconBackground
 
-    /// Card background color
-    static let cardBackground = Color(.secondarySystemGroupedBackground)
+    /// Card background color - warm white with subtle tint
+    static let cardBackground = Color(red: 253/255, green: 250/255, blue: 242/255)
+
+    /// Form/Sheet background color - slightly warmer than system background
+    static let formBackground = Color(red: 250/255, green: 248/255, blue: 243/255)
+
+    /// Section background color for forms
+    static let sectionBackground = Color(red: 252/255, green: 250/255, blue: 245/255)
+
+    /// Navigation/Toolbar background
+    static let navigationBackground = Color(UIColor.systemBackground)
 
     // MARK: - Type-specific Colors
     static let water = Color.blue

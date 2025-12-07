@@ -147,6 +147,7 @@ struct ReminderDetailView: View {
             }
             .padding()
         }
+        .background(AppColors.formBackground)
         .navigationTitle("提醒详情")
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

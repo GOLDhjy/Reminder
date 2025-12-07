@@ -44,7 +44,7 @@ struct ContentView: View {
                             ReminderRow(reminder: reminder) {
                                 editReminder(reminder)
                             }
-                            .listRowInsets(EdgeInsets())
+                            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                             .listRowSeparator(.hidden)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button("删除", role: .destructive) {
@@ -61,9 +61,10 @@ struct ContentView: View {
                     } header: {
                         HStack {
                             Image(systemName: "bell.fill")
-                                .foregroundColor(.blue)
+                                .foregroundColor(AppColors.primary)
                             Text("进行中的提醒")
                                 .font(.headline)
+                                .foregroundColor(.primary)
                             Spacer()
                             Text("\(activeReminders.count)")
                                 .font(.caption)
@@ -71,10 +72,11 @@ struct ContentView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(Color.blue)
+                                .background(AppColors.primary)
                                 .clipShape(Capsule())
                         }
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
                     }
                 }
 
@@ -85,7 +87,7 @@ struct ContentView: View {
                             ReminderRow(reminder: reminder) {
                                 editReminder(reminder)
                             }
-                            .listRowInsets(EdgeInsets())
+                            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                             .listRowSeparator(.hidden)
                             .opacity(0.7)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -103,9 +105,10 @@ struct ContentView: View {
                     } header: {
                         HStack {
                             Image(systemName: "pause.circle.fill")
-                                .foregroundColor(.gray)
+                                .foregroundColor(AppColors.custom)
                             Text("已暂停/完成")
                                 .font(.headline)
+                                .foregroundColor(.primary)
                             Spacer()
                             Text("\(inactiveReminders.count)")
                                 .font(.caption)
@@ -113,10 +116,11 @@ struct ContentView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
-                                .background(Color.gray)
+                                .background(AppColors.custom)
                                 .clipShape(Capsule())
                         }
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
                     }
                 }
 
@@ -160,13 +164,13 @@ struct ContentView: View {
                                     Text("创建第一个提醒")
                                         .font(.headline)
                                 }
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary)
                                 .padding(.horizontal, 32)
                                 .padding(.vertical, 16)
                                 .background(
                                     RoundedRectangle(cornerRadius: 30)
-                                        .fill(AppColors.primary)
-                                        .shadow(color: AppColors.primaryShadow, radius: 8, x: 0, y: 4)
+                                        .fill(AppColors.iconBackgroundDark)
+                                        .shadow(color: AppColors.shadow, radius: 8, x: 0, y: 4)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -186,7 +190,9 @@ struct ContentView: View {
                 }
             }
             #if os(iOS)
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(AppColors.background)
             #else
             .listStyle(.automatic)
             #endif
@@ -267,14 +273,14 @@ struct ContentView: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(AppColors.primary)
+                                    .fill(AppColors.iconBackgroundDark)
                                     .frame(width: 56, height: 56)
-                                    .shadow(color: AppColors.primaryShadow, radius: 10, x: 0, y: 5)
+                                    .shadow(color: AppColors.shadow, radius: 10, x: 0, y: 5)
 
                                 Image(systemName: "plus")
                                     .font(.title2)
                                     .fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary)
                                     .rotationEffect(.degrees(showingAddReminder ? 45 : 0))
                             }
                         }
@@ -527,7 +533,7 @@ struct ReminderRow: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 12)
 
                 // Bottom accent line
@@ -536,17 +542,24 @@ struct ReminderRow: View {
                     .frame(height: 3)
                     .opacity(reminder.isActive ? 0.8 : 0.3)
             }
-            #if os(iOS)
-            .background(Color(.systemBackground))
-            #else
-            .background(Color(NSColor.controlBackgroundColor))
-            #endif
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .shadow(color: AppColors.shadow, radius: 5, x: 0, y: 2)
+            .background(AppColors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .shadow(
+                color: Color.black.opacity(0.04),
+                radius: 15,
+                x: 0,
+                y: 4
+            )
+            .shadow(
+                color: Color.black.opacity(0.02),
+                radius: 1,
+                x: 0,
+                y: 1
+            )
         }
         .buttonStyle(PlainButtonStyle())
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
     }
 }
 

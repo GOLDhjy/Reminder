@@ -84,6 +84,10 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         }
     }
 
+    var systemImage: String {
+        return icon
+    }
+
     var emojiIcon: String {
         switch self {
         case .water: return "💧"
@@ -133,6 +137,27 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
             return "每月 \(day) 日"
         case .yearly(let month, let day):
             return "每年 \(month) 月 \(day) 日"
+        }
+    }
+
+    var shortDescription: String {
+        switch self {
+        case .never:
+            return "一次"
+        case .daily:
+            return "每日"
+        case .weekly(let weekdays):
+            if weekdays.count == 7 {
+                return "每日"
+            } else if weekdays.count == 1 {
+                return "每周\(weekdays.first?.shortName ?? "")"
+            } else {
+                return "每周"
+            }
+        case .monthly:
+            return "每月"
+        case .yearly:
+            return "每年"
         }
     }
 
