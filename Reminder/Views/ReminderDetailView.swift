@@ -226,15 +226,7 @@ struct ReminderDetailView: View {
     }
 
     private func colorForType(_ type: ReminderType) -> Color {
-        switch type {
-        case .water: return .blue
-        case .meal: return .orange
-        case .rest: return .green
-        case .sleep: return .purple
-        case .medicine: return .red
-        case .exercise: return .mint
-        case .custom: return .gray
-        }
+        return AppColors.colorForType(type)
     }
 }
 

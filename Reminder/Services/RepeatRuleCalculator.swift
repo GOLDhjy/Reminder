@@ -14,6 +14,20 @@ struct RepeatRuleCalculator {
         // Extract time component
         let timeComponents = calendar.dateComponents([.hour, .minute], from: timeOfDay)
 
+        // One-time reminders use their start day and do not repeat
+        if case .never = rule {
+            let baseDay = calendar.startOfDay(for: startDate)
+            let candidate = calendar.date(
+                bySettingHour: timeComponents.hour ?? 0,
+                minute: timeComponents.minute ?? 0,
+                second: 0,
+                of: baseDay
+            ) ?? startDate
+
+            // Only fire if the scheduled time is still in the future
+            return candidate > date ? candidate : nil
+        }
+
         // Check if we should start from today or tomorrow
         var searchDate: Date
         if date < startDate {
@@ -87,7 +101,8 @@ struct RepeatRuleCalculator {
     func matchesRule(_ date: Date, rule: RepeatRule, startDate: Date) -> Bool {
         switch rule {
         case .never:
-            return false
+            // Only match the start date once for non-repeating timers
+            return calendar.isDate(date, inSameDayAs: startDate) && date >= startDate
 
         case .daily:
             return date >= startDate

@@ -182,6 +182,14 @@ struct AddReminderView: View {
                 time: Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date()) ?? Date(),
                 repeatRule: .daily,
                 notes: "按时服药，遵医嘱"
+            ),
+            ReminderTemplate(
+                title: "做饭计时",
+                description: "比如煮面、炖汤 20 分钟",
+                type: .cooking,
+                time: Date(),
+                repeatRule: .never,
+                notes: "记得关火"
             )
         ]
     }
@@ -354,15 +362,7 @@ struct AddReminderView: View {
     }
 
     private func colorForType(_ type: ReminderType) -> Color {
-        switch type {
-        case .water: return .blue
-        case .meal: return .orange
-        case .rest: return .green
-        case .sleep: return .purple
-        case .medicine: return .red
-        case .exercise: return .mint
-        case .custom: return .gray
-        }
+        return AppColors.colorForType(type)
     }
 }
 

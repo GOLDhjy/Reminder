@@ -22,11 +22,38 @@ struct ContentView: View {
     @State private var selectedType: ReminderType?
     @State private var editingReminder: Reminder?
     @State private var centralButtonScale: CGFloat = 1.0
+    @State private var showingTimerSheet = false
+    @Namespace private var quickActionNamespace
 
     var body: some View {
         NavigationSplitView {
             ZStack(alignment: .bottom) {
             List {
+                // Quick Actions
+                Section {
+                    QuickActionButton(
+                        title: "定时任务",
+                        subtitle: "立即开始一个倒计时提醒",
+                        systemImage: "timer",
+                        tint: .orange,
+                        namespace: quickActionNamespace
+                    ) {
+                        showingTimerSheet = true
+                    }
+
+                    QuickActionButton(
+                        title: "添加提醒",
+                        subtitle: "设定具体时间与重复规则",
+                        systemImage: "plus.circle.fill",
+                        tint: AppColors.primary,
+                        namespace: quickActionNamespace
+                    ) {
+                        showingAddReminder = true
+                    }
+                }
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+
                 // Filter Section
                 if !selectedType.isNil {
                     Section(header: Text("筛选：\(selectedType?.rawValue ?? "全部")")) {
@@ -201,6 +228,10 @@ struct ContentView: View {
 #if os(iOS)
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Menu {
+                        Button(action: { showingTimerSheet = true }) {
+                            Label("定时任务", systemImage: "timer")
+                        }
+
                         Button(action: { showingSettings = true }) {
                             Label("设置", systemImage: "gear")
                         }
@@ -224,6 +255,10 @@ struct ContentView: View {
                 ToolbarItemGroup {
                     Button(action: { showingSettings = true }) {
                         Label("设置", systemImage: "gear")
+                    }
+
+                    Button(action: { showingTimerSheet = true }) {
+                        Label("定时任务", systemImage: "timer")
                     }
 
                     Menu("快速添加") {
@@ -256,6 +291,9 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showingTimerSheet) {
+                TimerTaskSheet()
             }
             .sheet(item: $editingReminder) { reminder in
                 AddReminderView(reminder: reminder)
@@ -348,6 +386,9 @@ struct ContentView: View {
             case .meal:
                 // Default to lunch time
                 return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+            case .cooking:
+                // Default to current time for immediate cooking timers
+                return now
             case .rest:
                 // Every hour
                 return now
@@ -560,6 +601,53 @@ struct ReminderRow: View {
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+    }
+}
+
+// MARK: - Quick Action Button
+private struct QuickActionButton: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    var namespace: Namespace.ID
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.16))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: systemImage)
+                        .foregroundColor(tint)
+                        .font(.headline)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(AppColors.cardElevated)
+                    .shadow(color: AppColors.shadow, radius: 14, x: 0, y: 6)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

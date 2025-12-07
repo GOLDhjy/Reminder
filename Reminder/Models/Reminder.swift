@@ -64,6 +64,7 @@ final class Reminder {
 enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
     case water = "喝水"
     case meal = "吃饭"
+    case cooking = "做饭"
     case rest = "休息"
     case sleep = "睡觉"
     case medicine = "吃药"
@@ -76,6 +77,7 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .water: return "drop.fill"
         case .meal: return "fork.knife"
+        case .cooking: return "fork.knife.circle.fill"
         case .rest: return "figure.seated.side"
         case .sleep: return "bed.double.fill"
         case .medicine: return "pills.fill"
@@ -92,6 +94,7 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .water: return "💧"
         case .meal: return "🍽️"
+        case .cooking: return "🍳"
         case .rest: return "🧘"
         case .sleep: return "😴"
         case .medicine: return "💊"
@@ -104,6 +107,7 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         switch self {
         case .water: return "blue"
         case .meal: return "orange"
+        case .cooking: return "brown"
         case .rest: return "green"
         case .sleep: return "purple"
         case .medicine: return "red"
