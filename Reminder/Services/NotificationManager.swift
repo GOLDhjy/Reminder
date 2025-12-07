@@ -245,6 +245,106 @@ class NotificationManager: ObservableObject {
         #endif
     }
 
+    // Send test notification
+    func sendTestNotification() async {
+        // First check current notification settings
+        let settings = await notificationCenter.notificationSettings()
+
+        print("=== Notification Settings ===")
+        print("Authorization Status: \(settings.authorizationStatus)")
+        print("Alert Setting: \(settings.alertSetting)")
+        print("Sound Setting: \(settings.soundSetting)")
+        print("Badge Setting: \(settings.badgeSetting)")
+        print("Alert Style: \(settings.alertStyle)")
+        print("========================")
+
+        // If not authorized, try to request authorization
+        if settings.authorizationStatus != .authorized {
+            do {
+                _ = try await requestAuthorization()
+                print("Requested notification authorization...")
+            } catch {
+                print("Failed to request authorization: \(error)")
+                return
+            }
+        }
+
+        // Create multiple test notifications with different approaches
+        await sendImmediateTestNotification()
+        await sendDelayedTestNotification()
+    }
+
+    // Send immediate notification (no trigger)
+    private func sendImmediateTestNotification() async {
+        let content = UNMutableNotificationContent()
+        content.title = "🔔 即时测试通知"
+        content.body = "这是\(AppConstants.appName)的即时测试通知"
+        content.sound = .default
+        content.interruptionLevel = .timeSensitive
+
+        // Add category for interactive actions
+        content.categoryIdentifier = AppConstants.reminderNotificationCategory
+
+        content.userInfo = [
+            "test": true,
+            "type": "immediate",
+            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "unknown",
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        // Create request with no trigger (fires immediately)
+        let request = UNNotificationRequest(
+            identifier: "immediate-test-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: nil  // No trigger = immediate
+        )
+
+        do {
+            try await notificationCenter.add(request)
+            print("Immediate test notification sent successfully")
+        } catch {
+            print("Failed to send immediate test notification: \(error)")
+        }
+    }
+
+    // Send delayed notification (for comparison)
+    private func sendDelayedTestNotification() async {
+        let content = UNMutableNotificationContent()
+        content.title = "⏰ 延迟测试通知"
+        content.body = "这是\(AppConstants.appName)的延迟测试通知 (2秒后显示)"
+        content.sound = .default
+        content.interruptionLevel = .critical
+
+        content.userInfo = [
+            "test": true,
+            "type": "delayed",
+            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "unknown",
+            "timestamp": Date().timeIntervalSince1970
+        ]
+
+        // Schedule with 2 second delay
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "delayed-test-\(Date().timeIntervalSince1970)",
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await notificationCenter.add(request)
+            print("Delayed test notification scheduled successfully")
+
+            // Log all pending notifications
+            let pendingRequests = await notificationCenter.pendingNotificationRequests()
+            print("Total pending notifications: \(pendingRequests.count)")
+            for req in pendingRequests {
+                print("- \(req.identifier): \(req.content.title)")
+            }
+        } catch {
+            print("Failed to send delayed test notification: \(error)")
+        }
+    }
+
     // Schedule a snooze notification
     private func scheduleSnoozeNotification(for reminder: Reminder) async throws {
         let content = UNMutableNotificationContent()

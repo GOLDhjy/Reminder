@@ -38,6 +38,7 @@ struct ReminderApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .background(AppColors.secondary.ignoresSafeArea())
                 .onAppear {
                     // Clear badge on app launch
                     #if os(iOS)

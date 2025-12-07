@@ -21,9 +21,11 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var selectedType: ReminderType?
     @State private var editingReminder: Reminder?
+    @State private var centralButtonScale: CGFloat = 1.0
 
     var body: some View {
         NavigationSplitView {
+            ZStack(alignment: .bottom) {
             List {
                 // Filter Section
                 if !selectedType.isNil {
@@ -31,7 +33,7 @@ struct ContentView: View {
                         Button("清除筛选") {
                             selectedType = nil
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(AppColors.primary)
                     }
                 }
 
@@ -118,19 +120,19 @@ struct ContentView: View {
                     }
                 }
 
-                // Empty state or always show add button section
+                // Empty state section
                 if reminders.isEmpty {
                     Section {
                         VStack(spacing: 24) {
                             // Animated icon
                             ZStack {
                                 Circle()
-                                    .fill(Color.blue.opacity(0.1))
+                                    .fill(AppColors.primary.opacity(0.1))
                                     .frame(width: 120, height: 120)
 
                                 Image(systemName: "bell.fill")
                                     .font(.system(size: 50))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(AppColors.primary)
                             }
                             .scaleEffect(1.0)
                             .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: true)
@@ -148,39 +150,38 @@ struct ContentView: View {
                                     .padding(.horizontal, 20)
                             }
 
-                            Button(action: { showingAddReminder = true }) {
+                            // Central floating button hint
+                            Button(action: {
+                                showingAddReminder = true
+                            }) {
                                 HStack {
                                     Image(systemName: "plus.circle.fill")
-                                    Text("创建提醒")
+                                        .font(.title3)
+                                    Text("创建第一个提醒")
+                                        .font(.headline)
                                 }
-                                .font(.headline)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 32)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 16)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 25)
-                                        .fill(Color.blue)
-                                        .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 2)
+                                    RoundedRectangle(cornerRadius: 30)
+                                        .fill(AppColors.primary)
+                                        .shadow(color: AppColors.primaryShadow, radius: 8, x: 0, y: 4)
                                 )
                             }
-                            .buttonStyle(.borderless)
-                            .padding(.top, 8)
+                            .buttonStyle(.plain)
+                            .scaleEffect(centralButtonScale)
+                            .onAppear {
+                                if reminders.isEmpty {
+                                    withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                                        centralButtonScale = 1.05
+                                    }
+                                }
+                            }
+                            .padding(.top, 10)
                         }
                         .padding(.vertical, 50)
                         .frame(maxWidth: .infinity)
-                    }
-                } else {
-                    // Always show add button section when there are reminders
-                    Section {
-                        Button(action: { showingAddReminder = true }) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(.blue)
-                                Text("添加新提醒")
-                                    .foregroundColor(.primary)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
                     }
                 }
             }
@@ -198,14 +199,6 @@ struct ContentView: View {
                             Label("设置", systemImage: "gear")
                         }
 
-                        Menu("快速添加") {
-                            ForEach(ReminderType.allCases.filter({ $0 != .custom }), id: \.self) { type in
-                                Button(action: { quickAddReminder(type: type) }) {
-                                    Label(type.rawValue, systemImage: type.icon)
-                                }
-                            }
-                        }
-
                         Menu("筛选") {
                             Button("全部") {
                                 selectedType = nil
@@ -219,10 +212,6 @@ struct ContentView: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
-                    }
-
-                    Button(action: { showingAddReminder = true }) {
-                        Label("添加提醒", systemImage: "plus")
                     }
                 }
 #else
@@ -265,9 +254,43 @@ struct ContentView: View {
             .sheet(item: $editingReminder) { reminder in
                 AddReminderView(reminder: reminder)
             }
+
+            // Floating Add Button for iOS
+            #if os(iOS)
+            if !reminders.isEmpty {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            showingAddReminder = true
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(AppColors.primary)
+                                    .frame(width: 56, height: 56)
+                                    .shadow(color: AppColors.primaryShadow, radius: 10, x: 0, y: 5)
+
+                                Image(systemName: "plus")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .rotationEffect(.degrees(showingAddReminder ? 45 : 0))
+                            }
+                        }
+                        .scaleEffect(showingAddReminder ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showingAddReminder)
+                        Spacer()
+                    }
+                    .padding(.bottom, 30)
+                }
+            }
+            #endif
+
 #if os(macOS)
             .navigationSplitViewColumnWidth(min: 300, ideal: 350)
 #endif
+            }
         } detail: {
             if let selectedReminder = reminders.first {
                 ReminderDetailView(reminder: selectedReminder)
@@ -427,12 +450,12 @@ struct ReminderRow: View {
                     // Icon with background
                     ZStack {
                         Circle()
-                            .fill(colorForType(reminder.type).opacity(0.15))
+                            .fill(AppColors.colorForType(reminder.type).opacity(0.15))
                             .frame(width: 50, height: 50)
 
                         Image(systemName: reminder.type.icon)
                             .font(.title3)
-                            .foregroundColor(colorForType(reminder.type))
+                            .foregroundColor(AppColors.colorForType(reminder.type))
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -448,13 +471,13 @@ struct ReminderRow: View {
                             // Status badge
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(reminder.isActive ? colorForType(reminder.type) : Color.gray)
+                                    .fill(reminder.isActive ? AppColors.colorForType(reminder.type) : AppColors.custom)
                                     .frame(width: 6, height: 6)
 
                                 Text(reminder.isActive ? "进行中" : "已暂停")
                                     .font(.caption2)
                                     .fontWeight(.medium)
-                                    .foregroundColor(reminder.isActive ? colorForType(reminder.type) : .gray)
+                                    .foregroundColor(reminder.isActive ? AppColors.colorForType(reminder.type) : AppColors.custom)
                             }
                         }
 
@@ -488,8 +511,8 @@ struct ReminderRow: View {
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(colorForType(reminder.type).opacity(0.1))
-                                .foregroundColor(colorForType(reminder.type))
+                                .background(AppColors.colorForType(reminder.type).opacity(0.1))
+                                .foregroundColor(AppColors.colorForType(reminder.type))
                                 .clipShape(Capsule())
                             }
                         }
@@ -509,7 +532,7 @@ struct ReminderRow: View {
 
                 // Bottom accent line
                 Rectangle()
-                    .fill(colorForType(reminder.type))
+                    .fill(AppColors.colorForType(reminder.type))
                     .frame(height: 3)
                     .opacity(reminder.isActive ? 0.8 : 0.3)
             }
@@ -519,23 +542,11 @@ struct ReminderRow: View {
             .background(Color(NSColor.controlBackgroundColor))
             #endif
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .shadow(color: AppColors.shadow, radius: 5, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
-    }
-
-    private func colorForType(_ type: ReminderType) -> Color {
-        switch type {
-        case .water: return .blue
-        case .meal: return .orange
-        case .rest: return .green
-        case .sleep: return .purple
-        case .medicine: return .red
-        case .exercise: return .mint
-        case .custom: return .gray
-        }
     }
 }
 

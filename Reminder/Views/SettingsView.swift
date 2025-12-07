@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var showingHolidayManagement = false
     @State private var showingExportOptions = false
     @State private var showingAbout = false
+    @State private var notificationTestResult = ""
 
     var body: some View {
 #if os(iOS)
@@ -40,16 +41,24 @@ struct SettingsView: View {
                             }
                         }
                         .disabled(notificationManager.isAuthorized)
-                        .foregroundColor(notificationManager.isAuthorized ? .gray : .blue)
+                        .foregroundColor(notificationManager.isAuthorized ? .gray : AppColors.primary)
                     }
 
                     HStack {
-                        Text("通知预览")
+                        VStack(alignment: .leading) {
+                            Text("通知预览")
+                            if !notificationManager.isAuthorized {
+                                Text("需要先开启通知权限")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
                         Spacer()
                         Button("测试通知") {
                             sendTestNotification()
                         }
-                        .foregroundColor(.blue)
+                        .disabled(!notificationManager.isAuthorized)
+                        .foregroundColor(notificationManager.isAuthorized ? .blue : .gray)
                     }
                 }
 
@@ -112,7 +121,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.gray)
-                            Text("关于生活提醒")
+                            Text("关于\(AppConstants.appName)")
                         }
                     }
                     .foregroundColor(.primary)
@@ -122,6 +131,13 @@ struct SettingsView: View {
                         Spacer()
                         Text("1.0.0")
                             .foregroundColor(.secondary)
+                    }
+                    if !notificationTestResult.isEmpty {
+                        Text(notificationTestResult)
+                            .font(.caption)
+                            .foregroundColor(AppColors.primary)
+                            .transition(.opacity)
+                            .animation(.easeInOut, value: notificationTestResult)
                     }
                 }
             }
@@ -143,6 +159,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingAbout) {
                 AboutView()
             }
+            .background(AppColors.secondary.ignoresSafeArea())
         }
 #else
         VStack(alignment: .leading, spacing: 20) {
@@ -171,16 +188,24 @@ struct SettingsView: View {
                             }
                         }
                         .disabled(notificationManager.isAuthorized)
-                        .foregroundColor(notificationManager.isAuthorized ? .gray : .blue)
+                        .foregroundColor(notificationManager.isAuthorized ? .gray : AppColors.primary)
                     }
 
                     HStack {
-                        Text("通知预览")
+                        VStack(alignment: .leading) {
+                            Text("通知预览")
+                            if !notificationManager.isAuthorized {
+                                Text("需要先开启通知权限")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
                         Spacer()
                         Button("测试通知") {
                             sendTestNotification()
                         }
-                        .foregroundColor(.blue)
+                        .disabled(!notificationManager.isAuthorized)
+                        .foregroundColor(notificationManager.isAuthorized ? .blue : .gray)
                     }
                 }
 
@@ -243,7 +268,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "info.circle")
                                 .foregroundColor(.gray)
-                            Text("关于生活提醒")
+                            Text("关于\(AppConstants.appName)")
                         }
                     }
                     .foregroundColor(.primary)
@@ -285,31 +310,23 @@ struct SettingsView: View {
     }
 
     private func sendTestNotification() {
-        let content = UNMutableNotificationContent()
-        content.title = "🔔 测试通知"
-        content.body = "小帮手测试通知 - 检查图标是否正常显示"
-        content.sound = .default
-        content.interruptionLevel = .critical
+        if !notificationManager.isAuthorized {
+            notificationTestResult = "请先开启通知权限"
+            return
+        }
 
-        // Add bundle identifier to help debug
-        content.userInfo = [
-            "test": true,
-            "bundleIdentifier": Bundle.main.bundleIdentifier ?? "unknown"
-        ]
+        notificationTestResult = "正在发送测试通知..."
 
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: trigger
-        )
+        Task {
+            await notificationManager.sendTestNotification()
 
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Failed to send test notification: \(error)")
-            } else {
-                print("Test notification scheduled successfully")
-                print("Bundle identifier: \(Bundle.main.bundleIdentifier ?? "unknown")")
+            await MainActor.run {
+                notificationTestResult = "测试通知已发送！请检查通知中心"
+
+                // 3秒后清除提示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    notificationTestResult = ""
+                }
             }
         }
     }
@@ -496,12 +513,12 @@ struct AboutView: View {
                 // App Icon
                 Image(systemName: "bell.fill")
                     .font(.system(size: 80))
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppColors.primary)
                     .padding(.top, 50)
 
                 // App Info
                 VStack(spacing: 10) {
-                    Text("生活提醒")
+                    Text(AppConstants.appName)
                         .font(.largeTitle)
                         .fontWeight(.bold)
 
@@ -526,13 +543,14 @@ struct AboutView: View {
                 Spacer()
 
                 // Copyright
-                Text("© 2025 生活提醒\n保留所有权利")
+                Text("© 2025 \(AppConstants.appName)\n保留所有权利")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.bottom)
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("关于")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -541,9 +559,8 @@ struct AboutView: View {
                     }
                 }
             }
+            .frame(minWidth: 400, minHeight: 400)
         }
-        .frame(minWidth: 400, minHeight: 400)
-    }
 }
 
 #Preview {
