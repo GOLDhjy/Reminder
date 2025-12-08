@@ -7,13 +7,23 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 struct AppColors {
     // MARK: - Primary Colors
     /// Primary icon background color - warm cream
-    static let iconBackground = Color(red: 246/255, green: 238/255, blue: 229/255)
+    static let iconBackground = adaptiveColor(
+        light: (246, 238, 229),
+        dark: (70, 60, 54)
+    )
 
     /// Darker shade of icon background for hover/active states
-    static let iconBackgroundDark = Color(red: 238/255, green: 226/255, blue: 213/255)
+    static let iconBackgroundDark = adaptiveColor(
+        light: (238, 226, 213),
+        dark: (88, 74, 66)
+    )
 
     // MARK: - Semantic Colors
     /// Primary accent color - terracotta
@@ -23,19 +33,34 @@ struct AppColors {
     static let secondary = Color(red: 171/255, green: 178/255, blue: 156/255)
 
     /// Background color for the app - soft parchment
-    static let background = Color(red: 249/255, green: 244/255, blue: 236/255)
+    static let background = adaptiveColor(
+        light: (249, 244, 236),
+        dark: (17, 15, 13)
+    )
 
     /// Card background color - warm white with subtle tint
-    static let cardBackground = Color(red: 253/255, green: 249/255, blue: 242/255)
+    static let cardBackground = adaptiveColor(
+        light: (253, 249, 242),
+        dark: (27, 23, 20)
+    )
 
     /// Elevated card background for prominent actions
-    static let cardElevated = Color(red: 250/255, green: 241/255, blue: 232/255)
+    static let cardElevated = adaptiveColor(
+        light: (250, 241, 232),
+        dark: (33, 28, 24)
+    )
 
     /// Form/Sheet background color - slightly warmer than system background
-    static let formBackground = Color(red: 248/255, green: 241/255, blue: 233/255)
+    static let formBackground = adaptiveColor(
+        light: (248, 241, 233),
+        dark: (24, 21, 18)
+    )
 
     /// Section background color for forms
-    static let sectionBackground = Color(red: 245/255, green: 236/255, blue: 225/255)
+    static let sectionBackground = adaptiveColor(
+        light: (245, 236, 225),
+        dark: (38, 33, 28)
+    )
 
     /// Navigation/Toolbar background
     static let navigationBackground = Color(UIColor.systemBackground)
@@ -61,7 +86,12 @@ struct AppColors {
     static let accentText = Color.accentColor
 
     // MARK: - Shadow Colors
-    static let shadow = Color.black.opacity(0.05)
+    static let shadow = adaptiveColor(
+        light: (0, 0, 0),
+        dark: (0, 0, 0),
+        alpha: 0.08,
+        darkAlpha: 0.32
+    )
     static let primaryShadow = Color.blue.opacity(0.3)
 
     // MARK: - Helper Methods
@@ -77,5 +107,33 @@ struct AppColors {
         case .exercise: return exercise
         case .custom: return custom
         }
+    }
+
+    // MARK: - Helpers
+    private static func adaptiveColor(
+        light: (Double, Double, Double),
+        dark: (Double, Double, Double),
+        alpha: Double = 1.0,
+        darkAlpha: Double? = nil
+    ) -> Color {
+        #if canImport(UIKit)
+        return Color(UIColor { traitCollection in
+            let rgb = traitCollection.userInterfaceStyle == .dark ? dark : light
+            let resolvedAlpha = traitCollection.userInterfaceStyle == .dark ? (darkAlpha ?? alpha) : alpha
+            return UIColor(
+                red: rgb.0/255,
+                green: rgb.1/255,
+                blue: rgb.2/255,
+                alpha: resolvedAlpha
+            )
+        })
+        #else
+        return Color(
+            red: light.0/255,
+            green: light.1/255,
+            blue: light.2/255,
+            opacity: alpha
+        )
+        #endif
     }
 }

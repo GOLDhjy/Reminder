@@ -24,6 +24,8 @@ struct AddReminderView: View {
     @State private var hasEndDate = false
     @State private var endDate = Date()
     @State private var selectedWeekdays: Set<Weekday> = []
+    @State private var userEditedTitle = false
+    @State private var autoTitle: String? = ""
 
     @State private var showingTimePicker = false
     @State private var showingRepeatOptions = false
@@ -60,6 +62,7 @@ struct AddReminderView: View {
         if case .weekly(let weekdays) = reminder.repeatRule {
             _selectedWeekdays = State(initialValue: Set(weekdays))
         }
+        _userEditedTitle = State(initialValue: true)
     }
 
     var body: some View {
@@ -126,7 +129,9 @@ struct AddReminderView: View {
                 quickTemplatesSection
             }
             .formStyle(.grouped)
-            .background(Color(NSColor.controlBackgroundColor))
+            .scrollContentBackground(.hidden)
+            .listRowBackground(AppColors.cardBackground)
+            .background(AppColors.formBackground)
             .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
 
             Spacer()
@@ -378,6 +383,17 @@ struct AddReminderView: View {
     private func colorForType(_ type: ReminderType) -> Color {
         return AppColors.colorForType(type)
     }
+
+    private func applyAutoTitleIfNeeded(for type: ReminderType) {
+        let newTitle = type.rawValue
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !userEditedTitle && (trimmed.isEmpty || trimmed == autoTitle) {
+            title = newTitle
+            autoTitle = newTitle
+        } else {
+            autoTitle = newTitle
+        }
+    }
 }
 
 // MARK: - iOS Styled Sections
@@ -420,6 +436,7 @@ private extension AddReminderView {
                 ForEach(ReminderType.allCases, id: \.self) { type in
                     Button {
                         selectedType = type
+                        applyAutoTitleIfNeeded(for: type)
                     } label: {
                         HStack {
                             Image(systemName: type.icon)
@@ -465,6 +482,14 @@ private extension AddReminderView {
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(Color.gray.opacity(0.15), lineWidth: 1)
                 )
+                .onChange(of: title) { newValue in
+                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        userEditedTitle = false
+                    } else if trimmed != autoTitle {
+                        userEditedTitle = true
+                    }
+                }
         }
     }
 

@@ -16,80 +16,103 @@ struct TimerTaskSheet: View {
     @State private var notes: String = ""
     @State private var selectedType: ReminderType = .cooking
     @State private var durationMinutes: Double = 10
+    @State private var userEditedTitle: Bool = false
+    @State private var autoTitle: String? = "定时任务"
 
     private let presetDurations: [Int] = [5, 10, 15, 20, 25, 30, 45, 60]
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
+            ScrollView {
+                VStack(spacing: 16) {
+                    header
 
-                Form {
-                    Section(header: Text("提醒内容")) {
+                    SectionCard(title: "提醒内容") {
+                        VStack(alignment: .leading, spacing: 12) {
                         TextField("做什么？例如：煮饭、焖汤", text: $title)
+                            .padding(12)
+                            .background(AppColors.cardElevated)
+                            .cornerRadius(12)
 #if os(iOS)
                             .textInputAutocapitalization(.sentences)
 #endif
+                            .onChange(of: title) { newValue in
+                                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if trimmed.isEmpty {
+                                    userEditedTitle = false
+                                } else if trimmed != autoTitle {
+                                    userEditedTitle = true
+                                }
+                            }
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(ReminderType.allCases, id: \.self) { type in
                                     TagChip(title: type.rawValue, systemImage: type.icon, isSelected: selectedType == type, color: AppColors.colorForType(type)) {
                                         selectedType = type
+                                        applyAutoTitleIfNeeded(for: type)
                                     }
                                 }
                             }
                         }
 
-                        TextField("备注（可选）", text: $notes, axis: .vertical)
-                            .lineLimit(3)
+                            TextField("备注（可选）", text: $notes, axis: .vertical)
+                                .lineLimit(3)
+                                .padding(12)
+                                .background(AppColors.cardElevated)
+                                .cornerRadius(12)
+                        }
                     }
 
-                    Section(header: Text("计时长度")) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(presetDurations, id: \.self) { minutes in
-                                    Button(action: {
-                                        durationMinutes = Double(minutes)
-                                    }) {
-                                        Text("\(minutes) 分钟")
-                                            .padding(.horizontal, 14)
-                                            .padding(.vertical, 10)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 14)
-                                                    .fill(minutes == Int(durationMinutes) ? AppColors.primary.opacity(0.15) : AppColors.cardBackground)
-                                            )
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 14)
-                                                    .stroke(minutes == Int(durationMinutes) ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
-                                            )
+                    SectionCard(title: "计时长度") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 10) {
+                                    ForEach(presetDurations, id: \.self) { minutes in
+                                        Button(action: {
+                                            durationMinutes = Double(minutes)
+                                        }) {
+                                            Text("\(minutes) 分钟")
+                                                .padding(.horizontal, 14)
+                                                .padding(.vertical, 10)
+                                                .background(
+                                                    RoundedRectangle(cornerRadius: 14)
+                                                        .fill(minutes == Int(durationMinutes) ? AppColors.primary.opacity(0.15) : AppColors.cardElevated)
+                                                )
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 14)
+                                                        .stroke(minutes == Int(durationMinutes) ? AppColors.primary : AppColors.shadow.opacity(0.4), lineWidth: 1)
+                                                )
+                                        }
+                                        .foregroundColor(.primary)
                                     }
-                                    .foregroundColor(.primary)
                                 }
+                                .padding(.vertical, 4)
                             }
-                            .padding(.vertical, 4)
-                        }
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Slider(value: $durationMinutes, in: 1...120, step: 1) {
-                                Text("自定义分钟数")
+                            VStack(alignment: .leading, spacing: 8) {
+                                Slider(value: $durationMinutes, in: 1...120, step: 1) {
+                                    Text("自定义分钟数")
+                                }
+                                .tint(AppColors.primary)
+                                Text("将在 \(Int(durationMinutes)) 分钟后提醒你。")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
                             }
-                            Text("将在 \(Int(durationMinutes)) 分钟后提醒你。")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
-                        }
 
-                        HStack {
-                            Image(systemName: "timer")
-                                .foregroundColor(.secondary)
-                            Text("适合煮饭、炖汤、番茄钟等快速提醒。")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+                            HStack {
+                                Image(systemName: "timer")
+                                    .foregroundColor(.secondary)
+                                Text("适合煮饭、炖汤、番茄钟等快速提醒。")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
-                .scrollContentBackground(.hidden)
-                .background(AppColors.background)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+                .background(AppColors.formBackground)
             }
         }
         .toolbarBackground(AppColors.background, for: .navigationBar)
@@ -190,6 +213,46 @@ struct TimerTaskSheet: View {
         let calendar = Calendar.current
         let rawDate = Date().addingTimeInterval(minutesFromNow * 60)
         return calendar.date(bySetting: .second, value: 0, of: rawDate) ?? rawDate
+    }
+
+    private func applyAutoTitleIfNeeded(for type: ReminderType) {
+        let newTitle = type.rawValue
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !userEditedTitle && (trimmed.isEmpty || trimmed == autoTitle) {
+            title = newTitle
+            autoTitle = newTitle
+        } else {
+            autoTitle = newTitle
+        }
+    }
+}
+
+// MARK: - Section Card
+private struct SectionCard<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 12) {
+                content
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(AppColors.cardBackground)
+                    .shadow(color: AppColors.shadow, radius: 8, x: 0, y: 4)
+            )
+        }
     }
 }
 

@@ -100,7 +100,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("URL Scheme: reminder://")
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(AppColors.primary)
 
                         Text("其他应用可以通过 URL Scheme 添加提醒：")
                             .font(.caption2)
@@ -110,7 +110,7 @@ struct SettingsView: View {
                             .font(.caption2)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.gray.opacity(0.1))
+                            .background(AppColors.cardBackground)
                             .cornerRadius(4)
                     }
                 }
@@ -141,6 +141,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .themedFormBackground()
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -159,7 +160,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showingAbout) {
                 AboutView()
             }
-            .background(AppColors.secondary.ignoresSafeArea())
+            .background(AppColors.background.ignoresSafeArea())
         }
 #else
         VStack(alignment: .leading, spacing: 20) {
@@ -247,7 +248,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("URL Scheme: reminder://")
                             .font(.caption)
-                            .foregroundColor(.blue)
+                            .foregroundColor(AppColors.primary)
 
                         Text("其他应用可以通过 URL Scheme 添加提醒：")
                             .font(.caption2)
@@ -257,7 +258,7 @@ struct SettingsView: View {
                             .font(.caption2)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.gray.opacity(0.1))
+                            .background(AppColors.cardBackground)
                             .cornerRadius(4)
                     }
                 }
@@ -282,6 +283,7 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            .themedFormBackground()
 
             Spacer()
 
@@ -391,7 +393,7 @@ struct HolidayManagementView: View {
                             await holidayManager.loadHolidays(for: selectedCountry, year: selectedYear)
                         }
                     }
-                    .foregroundColor(.blue)
+                    .foregroundColor(AppColors.primary)
                 }
 
                 Section(header: Text("当前节假日")) {
@@ -403,23 +405,24 @@ struct HolidayManagementView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(holiday.name)
-                                    Text(holiday.date.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Text(holiday.type.rawValue)
-                                    .font(.caption2)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.gray.opacity(0.2))
-                                    .cornerRadius(4)
+                                Text(holiday.date.formatted(date: .abbreviated, time: .omitted))
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
+                            Spacer()
+                            Text(holiday.type.rawValue)
+                                .font(.caption2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(AppColors.cardBackground)
+                                .cornerRadius(4)
                         }
+                    }
                     }
                 }
             }
             .formStyle(.grouped)
+            .themedFormBackground()
             .navigationTitle("节假日管理")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -463,11 +466,12 @@ struct ExportOptionsView: View {
                     .frame(maxWidth: .infinity)
                     .foregroundColor(.white)
                     .padding()
-                    .background(Color.blue)
+                    .background(AppColors.primary)
                     .cornerRadius(8)
                 }
             }
             .formStyle(.grouped)
+            .themedFormBackground()
             .navigationTitle("导出数据")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 import SwiftData
 import UserNotifications
 import Intents
@@ -15,6 +18,15 @@ struct ReminderApp: App {
     @StateObject private var notificationManager = NotificationManager.shared
     @StateObject private var holidayManager = HolidayManager.shared
     @StateObject private var siriIntentsManager = SiriIntentsManager.shared
+
+#if os(iOS)
+    init() {
+        // Unify form/list backgrounds globally to avoid default white
+        UITableView.appearance().backgroundColor = UIColor(AppColors.formBackground)
+        UITableViewCell.appearance().backgroundColor = UIColor(AppColors.cardElevated)
+        UITableViewHeaderFooterView.appearance().tintColor = UIColor(AppColors.formBackground)
+    }
+#endif
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

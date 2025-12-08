@@ -31,7 +31,7 @@ struct ReminderDetailView: View {
                         // Status Badge
                         HStack {
                             Circle()
-                                .fill(reminder.isActive ? Color.green : Color.gray)
+                                .fill(reminder.isActive ? AppColors.success : AppColors.custom)
                                 .frame(width: 12, height: 12)
                             Text(reminder.isActive ? "进行中" : "已暂停")
                                 .font(.caption)
@@ -50,8 +50,11 @@ struct ReminderDetailView: View {
                     }
                 }
                 .padding()
-                .background(Color.gray.opacity(0.1))
-                .cornerRadius(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(AppColors.cardBackground)
+                        .shadow(color: AppColors.shadow, radius: 10, x: 0, y: 6)
+                )
 
                 // Time Information
                 Group {
@@ -238,7 +241,7 @@ struct SectionHeader: View {
     var body: some View {
         HStack {
             Image(systemName: icon)
-                .foregroundColor(.blue)
+                .foregroundColor(AppColors.primary)
             Text(title)
                 .font(.headline)
             Spacer()
@@ -292,8 +295,11 @@ struct LogRow: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(AppColors.cardBackground)
+                .shadow(color: AppColors.shadow, radius: 6, x: 0, y: 3)
+        )
     }
 
     private func iconForAction(_ action: ReminderLog.LogAction) -> String {
@@ -308,11 +314,11 @@ struct LogRow: View {
 
     private func colorForAction(_ action: ReminderLog.LogAction) -> Color {
         switch action {
-        case .triggered: return .blue
-        case .acknowledged: return .gray
-        case .snoozed: return .orange
-        case .skipped: return .red
-        case .completed: return .green
+        case .triggered: return AppColors.primary
+        case .acknowledged: return AppColors.custom
+        case .snoozed: return AppColors.warning
+        case .skipped: return AppColors.error
+        case .completed: return AppColors.success
         }
     }
 }
@@ -388,6 +394,7 @@ struct EditReminderView: View {
                     Toggle("排除节假日", isOn: $reminder.excludeHolidays)
                 }
             }
+            .themedFormBackground()
             .navigationTitle("编辑提醒")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
