@@ -48,17 +48,19 @@ struct ContentView: View {
     private var rootView: some View {
 #if os(iOS)
         NavigationStack {
-            if useCustomList {
-                listContent
-            } else {
-                splitView
+            Group {
+                if useCustomList {
+                    listContent
+                } else {
+                    splitView
+                }
             }
-        }
-        .navigationTitle(AppConstants.appName)
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                trailingMenuiOS
+            .navigationTitle(AppConstants.appName)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    trailingMenuiOS
+                }
             }
         }
 #else
