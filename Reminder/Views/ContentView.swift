@@ -27,22 +27,13 @@ struct ContentView: View {
     private let useCustomList = true
 
     var body: some View {
-#if os(iOS)
-        if useCustomList {
-            wrapWithSheets(
-                NavigationStack {
-                    listContent
-                        .navigationTitle(AppConstants.appName)
-                        .navigationBarTitleDisplayMode(.large)
-                        .toolbar { topBar }
-                }
-            )
-        } else {
-            wrapWithSheets(splitView)
+        wrapWithSheets(rootView)
+        .task {
+            cleanupExpiredOneTimeReminders()
         }
-#else
-        wrapWithSheets(splitView)
-#endif
+        .onChange(of: reminders) { _ in
+            cleanupExpiredOneTimeReminders()
+        }
     }
 
     private var splitView: some View {
@@ -51,13 +42,61 @@ struct ContentView: View {
         } detail: {
             detailView
         }
-#if os(macOS)
-        .navigationSplitViewColumnWidth(min: 300, ideal: 350)
-#endif
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+#if os(iOS)
+        NavigationStack {
+            if useCustomList {
+                listContent
+            } else {
+                splitView
+            }
+        }
         .navigationTitle(AppConstants.appName)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar { topBar }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                trailingMenuiOS
+            }
+        }
+#else
+        splitView
+            .navigationTitle(AppConstants.appName)
+            .navigationBarTitleDisplayMode(.large)
+#if os(macOS)
+            .navigationSplitViewColumnWidth(min: 300, ideal: 350)
+#endif
+            .toolbar {
+                toolbarItemsMac
+            }
+#endif
     }
+
+#if os(iOS)
+    @ViewBuilder
+    private var iOSRoot: some View {
+        if useCustomList {
+            NavigationStack {
+                listContent
+                    .navigationTitle(AppConstants.appName)
+                    .navigationBarTitleDisplayMode(.large)
+            }
+        } else {
+            NavigationStack {
+                splitView
+            }
+        }
+    }
+#else
+    @ViewBuilder
+    private var macRoot: some View {
+        splitView
+            .navigationTitle(AppConstants.appName)
+            .navigationBarTitleDisplayMode(.large)
+    }
+#endif
 
     private var detailView: some View {
         Group {
@@ -77,36 +116,36 @@ struct ContentView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var topBar: some ToolbarContent {
-#if os(iOS)
-        ToolbarItemGroup(placement: .navigationBarTrailing) {
-            Menu {
-                Button(action: { showingTimerSheet = true }) {
-                    Label("定时任务", systemImage: "timer")
-                }
-
-                Button(action: { showingSettings = true }) {
-                    Label("设置", systemImage: "gear")
-                }
-
-                Menu("筛选") {
-                    Button("全部") {
-                        selectedType = nil
-                    }
-                    Divider()
-                    ForEach(ReminderType.allCases, id: \.self) { type in
-                        Button(action: { selectedType = type }) {
-                            Label(type.rawValue, systemImage: type.icon)
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
+    private var trailingMenuiOS: some View {
+        Menu {
+            Button(action: { showingTimerSheet = true }) {
+                Label("定时任务", systemImage: "timer")
             }
-            .tint(AppColors.primary)
+
+            Button(action: { showingSettings = true }) {
+                Label("设置", systemImage: "gear")
+            }
+
+            Menu("筛选") {
+                Button("全部") {
+                    selectedType = nil
+                }
+                Divider()
+                ForEach(ReminderType.allCases, id: \.self) { type in
+                    Button(action: { selectedType = type }) {
+                        Label(type.rawValue, systemImage: type.icon)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
         }
-#else
+        .tint(AppColors.primary)
+    }
+
+#if os(macOS)
+    @ToolbarContentBuilder
+    private var toolbarItemsMac: some ToolbarContent {
         ToolbarItemGroup {
             Button(action: { showingSettings = true }) {
                 Label("设置", systemImage: "gear")
@@ -139,8 +178,8 @@ struct ContentView: View {
                 Label("添加提醒", systemImage: "plus")
             }
         }
-#endif
     }
+#endif
 
     private func wrapWithSheets<Content: View>(_ content: Content) -> some View {
         content
@@ -494,9 +533,55 @@ struct ContentView: View {
     }
 
     private func toggleReminder(_ reminder: Reminder) {
+        let willActivate = !reminder.isActive
         reminder.isActive.toggle()
         reminder.updatedAt = Date()
+
+        // If re-activating a一次性提醒，推到未来的合适时间
+        if willActivate, case .never = reminder.repeatRule {
+            normalizeOneTimeReminder(reminder)
+        }
+
         saveAndSchedule(reminder: reminder)
+    }
+
+    private func normalizeOneTimeReminder(_ reminder: Reminder) {
+        let calendar = Calendar.current
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
+        let targetToday = calendar.date(
+            bySettingHour: calendar.component(.hour, from: reminder.timeOfDay),
+            minute: calendar.component(.minute, from: reminder.timeOfDay),
+            second: 0,
+            of: today
+        ) ?? now
+
+        if targetToday > now {
+            reminder.startDate = targetToday
+        } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: targetToday) {
+            reminder.startDate = tomorrow
+        } else {
+            reminder.startDate = now
+        }
+        reminder.endDate = nil
+    }
+
+    private func cleanupExpiredOneTimeReminders() {
+        let expired = reminders.filter { reminder in
+            guard reminder.isActive else { return false }
+            guard case .never = reminder.repeatRule else { return false }
+            return reminder.nextTriggerDate == nil
+        }
+
+        guard !expired.isEmpty else { return }
+
+        for reminder in expired {
+            reminder.isActive = false
+            reminder.notificationID = nil
+            reminder.updatedAt = Date()
+        }
+
+        try? modelContext.save()
     }
 
     private func deleteReminder(_ reminder: Reminder) {

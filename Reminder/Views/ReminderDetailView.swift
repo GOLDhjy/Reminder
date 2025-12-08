@@ -385,6 +385,7 @@ struct EditReminderView: View {
                     Picker("重复规则", selection: $reminder.repeatRule) {
                         Text("不重复").tag(RepeatRule.never)
                         Text("每天").tag(RepeatRule.daily)
+                        Text("每30分钟").tag(RepeatRule.intervalMinutes(30))
                         Text("工作日").tag(RepeatRule.weekly([.monday, .tuesday, .wednesday, .thursday, .friday]))
                         Text("周末").tag(RepeatRule.weekly([.saturday, .sunday]))
                         Text("每月1日").tag(RepeatRule.monthly(1))

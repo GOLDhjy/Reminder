@@ -30,15 +30,15 @@
 	<string>小帮手</string>
 	<key>CFBundleName</key>
 	<string>小帮手</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon.icns</string>
 	<key>CFBundleIcons</key>
 	<dict>
 		<key>CFBundlePrimaryIcon</key>
 		<dict>
+			<key>CFBundleIconName</key>
+			<string>AppIcon</string>
 			<key>CFBundleIconFiles</key>
 			<array>
-				<string>AppIcon.appiconset</string>
+				<string>AppIcon</string>
 			</array>
 			<key>UIPrerenderedIcon</key>
 			<false/>

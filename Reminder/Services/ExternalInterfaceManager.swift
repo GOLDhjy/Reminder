@@ -77,6 +77,8 @@ class ExternalInterfaceManager: ObservableObject {
         case "weekly":
             // Default to weekdays
             repeatRule = .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
+        case "interval30", "every30m":
+            repeatRule = .intervalMinutes(30)
         case "monthly":
             repeatRule = .monthly(1)
         case "yearly":

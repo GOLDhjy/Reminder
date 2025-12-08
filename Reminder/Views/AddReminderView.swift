@@ -26,6 +26,9 @@ struct AddReminderView: View {
     @State private var selectedWeekdays: Set<Weekday> = []
     @State private var userEditedTitle = false
     @State private var autoTitle: String? = ""
+    @State private var customIntervalMinutes = 30
+    @State private var useCustomInterval = false
+    @State private var lastNonIntervalRule: RepeatRule = .daily
 
     @State private var showingTimePicker = false
     @State private var showingRepeatOptions = false
@@ -53,6 +56,13 @@ struct AddReminderView: View {
         _selectedRepeatRule = State(initialValue: reminder.repeatRule)
         _excludeHolidays = State(initialValue: reminder.excludeHolidays)
         _startDate = State(initialValue: reminder.startDate)
+
+        if case .intervalMinutes(let minutes) = reminder.repeatRule {
+            _customIntervalMinutes = State(initialValue: minutes)
+            _useCustomInterval = State(initialValue: true)
+        } else {
+            _lastNonIntervalRule = State(initialValue: reminder.repeatRule)
+        }
 
         if let endDate = reminder.endDate {
             _hasEndDate = State(initialValue: true)
@@ -113,6 +123,12 @@ struct AddReminderView: View {
             .sheet(isPresented: $showingRepeatOptions) {
                 RepeatRulePickerView(selectedRule: $selectedRepeatRule)
             }
+            .onAppear {
+                syncCustomIntervalFromRule()
+            }
+            .onChange(of: selectedRepeatRule) { _ in
+                syncCustomIntervalFromRule()
+            }
         }
 #else
         VStack(alignment: .leading, spacing: 20) {
@@ -172,10 +188,10 @@ struct AddReminderView: View {
         [
             ReminderTemplate(
                 title: "喝水提醒",
-                description: "每2小时提醒一次",
+                description: "自定义间隔喝水提醒",
                 type: .water,
                 time: Date(),
-                repeatRule: .daily,
+                repeatRule: .intervalMinutes(30),
                 notes: "保持水分，有益健康"
             ),
             ReminderTemplate(
@@ -196,19 +212,11 @@ struct AddReminderView: View {
             ),
             ReminderTemplate(
                 title: "吃药提醒",
-                description: "每天早晚各一次",
+                description: "每天定时服药",
                 type: .medicine,
                 time: Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date()) ?? Date(),
                 repeatRule: .daily,
-                notes: "按时服药，遵医嘱"
-            ),
-            ReminderTemplate(
-                title: "做饭计时",
-                description: "比如煮面、炖汤 20 分钟",
-                type: .cooking,
-                time: Date(),
-                repeatRule: .never,
-                notes: "记得关火"
+                notes: "按时服药，遵医嘱（如需早晚各一次，请单独建两个提醒）"
             )
         ]
     }
@@ -394,6 +402,32 @@ struct AddReminderView: View {
             autoTitle = newTitle
         }
     }
+
+    private func selectRepeatRule(_ rule: RepeatRule) {
+        selectedRepeatRule = rule
+        if case .intervalMinutes(let minutes) = rule {
+            customIntervalMinutes = minutes
+            useCustomInterval = true
+        } else {
+            lastNonIntervalRule = rule
+            useCustomInterval = false
+        }
+    }
+
+    private func applyCustomInterval() {
+        useCustomInterval = true
+        selectedRepeatRule = .intervalMinutes(customIntervalMinutes)
+    }
+
+    private func syncCustomIntervalFromRule() {
+        if case .intervalMinutes(let minutes) = selectedRepeatRule {
+            customIntervalMinutes = minutes
+            useCustomInterval = true
+        } else {
+            useCustomInterval = false
+            lastNonIntervalRule = selectedRepeatRule
+        }
+    }
 }
 
 // MARK: - iOS Styled Sections
@@ -402,19 +436,19 @@ private extension AddReminderView {
         VStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(AppColors.primary.opacity(0.18))
+                    .fill(AppColors.colorForType(selectedType).opacity(0.18))
                     .frame(width: 72, height: 72)
                     .shadow(color: AppColors.shadow, radius: 6, x: 0, y: 3)
-                Image(systemName: "leaf.fill")
-                    .foregroundColor(AppColors.primary)
+                Image(systemName: selectedType.icon)
+                    .foregroundColor(AppColors.colorForType(selectedType))
                     .font(.title2.weight(.bold))
             }
-            Text(navigationTitle)
-                .font(.title3)
+            Text("安排一个贴心提醒")
+                .font(.title3.weight(.semibold))
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
-            Text("设置任务名称、重复规则和时间")
-                .font(.footnote)
+            Text("选个类型、起个名字，再定下频率和时间")
+                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -428,9 +462,14 @@ private extension AddReminderView {
 
     var typeGridSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("任务类型")
-                .font(.headline)
-                .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("提醒主题")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("先选个氛围，标题会自动带上关键词")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(ReminderType.allCases, id: \.self) { type in
@@ -467,11 +506,16 @@ private extension AddReminderView {
 
     var titleSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("任务名称")
-                .font(.headline)
-                .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("给它起个名字")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("一句话即可，稍后可再补充备注")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
-            TextField("例如：运动一下", text: $title)
+            TextField("例如：起来喝水、活动一下", text: $title)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
                 .background(
@@ -494,61 +538,165 @@ private extension AddReminderView {
     }
 
     var repeatChipsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("重复规则")
-                .font(.headline)
-                .foregroundColor(.primary)
+        let quickRules: [RepeatRule] = [
+            .daily,
+            RepeatRule.weekly([.monday, .tuesday, .wednesday, .thursday, .friday]),
+            RepeatRule.weekly([.saturday, .sunday]),
+            .monthly(1),
+            .yearly(1, 1),
+            .never
+        ]
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("提醒频率")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text("常用频率 + 自定义间隔，一屏搞定")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button {
+                    showingRepeatOptions = true
+                } label: {
+                    Label("更多", systemImage: "ellipsis")
+                        .labelStyle(.iconOnly)
+                        .padding(8)
+                        .background(
+                            Circle().fill(AppColors.cardBackground)
+                        )
+                        .overlay(
+                            Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(RepeatRule.allCases, id: \.self) { rule in
+                    ForEach(quickRules, id: \.self) { rule in
+                        let isSelected = rule.isSame(as: selectedRepeatRule) && !useCustomInterval
                         Button {
-                            selectedRepeatRule = rule
-                            showingRepeatOptions = (rule != .never && rule != .daily && {
-                                if case .weekly = rule { return false }
-                                if case .monthly = rule { return false }
-                                if case .yearly = rule { return false }
-                                return true
-                            }())
+                            selectRepeatRule(rule)
                         } label: {
-                            Text(rule.shortDescription)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule().fill(rule == selectedRepeatRule ? AppColors.primary.opacity(0.15) : AppColors.cardBackground)
-                                )
-                                .overlay(
-                                    Capsule().stroke(rule == selectedRepeatRule ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
-                                )
-                                .foregroundColor(.primary)
+                            HStack(spacing: 6) {
+                                Text(rule.shortDescription)
+                                if isSelected {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(AppColors.primary)
+                                }
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule().fill(isSelected ? AppColors.primary.opacity(0.15) : AppColors.cardBackground)
+                            )
+                            .overlay(
+                                Capsule().stroke(isSelected ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                            .foregroundColor(.primary)
                         }
                         .buttonStyle(.plain)
                     }
+                }
+            }
 
+            customIntervalCard
+        }
+    }
+
+    var customIntervalCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("自定义间隔")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Text("适合高频任务，如喝水、伸展等")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Toggle("", isOn: $useCustomInterval)
+                    .labelsHidden()
+                    .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
+                    .onChange(of: useCustomInterval) { isOn in
+                        if isOn {
+                            applyCustomInterval()
+                        } else if case .intervalMinutes = selectedRepeatRule {
+                            selectedRepeatRule = lastNonIntervalRule
+                        }
+                    }
+            }
+
+            HStack(spacing: 10) {
+                ForEach([15, 30, 60], id: \.self) { minutes in
+                    let isSelected = useCustomInterval && customIntervalMinutes == minutes
                     Button {
-                        showingRepeatOptions = true
+                        customIntervalMinutes = minutes
+                        applyCustomInterval()
                     } label: {
-                        Image(systemName: "ellipsis")
+                        Text("每\(minutes)分")
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(
-                                Capsule().fill(AppColors.cardBackground)
+                                Capsule().fill(isSelected ? AppColors.primary.opacity(0.2) : AppColors.cardBackground)
                             )
                             .overlay(
-                                Capsule().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                Capsule().stroke(isSelected ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
                             )
+                            .foregroundColor(.primary)
                     }
                     .buttonStyle(.plain)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("每 \(customIntervalMinutes) 分钟提醒一次")
+                        .font(.subheadline)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                Slider(value: Binding(
+                    get: { Double(customIntervalMinutes) },
+                    set: { customIntervalMinutes = Int($0) }
+                ), in: 5...180, step: 5)
+                .tint(AppColors.primary)
+                .disabled(!useCustomInterval)
+                .onChange(of: customIntervalMinutes) { _ in
+                    if useCustomInterval {
+                        applyCustomInterval()
+                    }
+                }
+                Text("范围 5-180 分钟，步进 5 分钟")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.cardElevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.gray.opacity(0.08), lineWidth: 1)
+        )
     }
 
     var timeCardSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("提醒时间")
-                .font(.headline)
-                .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("提醒时间")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("选择首次提醒时间，间隔会从这里计算")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
 
             Button {
                 showingTimePicker = true
@@ -628,7 +776,7 @@ private extension AddReminderView {
         Button {
             if isEditing { updateReminder() } else { saveReminder() }
         } label: {
-            Text(isEditing ? "保存修改" : "种下控桩")
+            Text(isEditing ? "保存修改" : "保存提醒")
                 .font(.headline)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -741,6 +889,13 @@ struct RepeatRulePickerView: View {
     @State private var yearlyMonth = 1
     @State private var yearlyDay = 1
 
+    private let workdayRule = RepeatRule.weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
+    private let weekendRule = RepeatRule.weekly([.saturday, .sunday])
+
+    private func isSelected(_ rule: RepeatRule) -> Bool {
+        selectedRule.isSame(as: rule)
+    }
+
     
     var body: some View {
 #if os(iOS)
@@ -755,7 +910,7 @@ struct RepeatRulePickerView: View {
                             HStack {
                                 Text(rule.description)
                                 Spacer()
-                                if selectedRule == rule {
+                                if isSelected(rule) {
                                     Image(systemName: "checkmark")
                                         .foregroundColor(.blue)
                                 }
@@ -767,13 +922,13 @@ struct RepeatRulePickerView: View {
 
                 Section(header: Text("每周")) {
                     Button(action: {
-                        selectedRule = .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
+                        selectedRule = workdayRule
                         dismiss()
                     }) {
                         HStack {
                             Text("工作日（周一到周五）")
                             Spacer()
-                            if selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) {
+                            if isSelected(workdayRule) {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
@@ -782,13 +937,13 @@ struct RepeatRulePickerView: View {
                     .foregroundColor(.primary)
 
                     Button(action: {
-                        selectedRule = .weekly([.saturday, .sunday])
+                        selectedRule = weekendRule
                         dismiss()
                     }) {
                         HStack {
                             Text("周末（周六和周日）")
                             Spacer()
-                            if selectedRule == .weekly([.saturday, .sunday]) {
+                            if isSelected(weekendRule) {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
@@ -844,7 +999,7 @@ struct RepeatRulePickerView: View {
                                     Text(rule.description)
                                         .font(.body)
                                     Spacer()
-                                    if selectedRule == rule {
+                                    if isSelected(rule) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundColor(.blue)
                                     } else {
@@ -859,12 +1014,26 @@ struct RepeatRulePickerView: View {
                                         .fill(Color(NSColor.controlBackgroundColor))
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 8)
-                                                .stroke(selectedRule == rule ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == rule ? 2 : 1)
+                                                .stroke(isSelected(rule) ? Color.blue : Color.gray.opacity(0.3), lineWidth: isSelected(rule) ? 2 : 1)
                                         )
                                 )
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
+                    }
+
+                    // 高频
+                    VStack(spacing: 8) {
+                        Text("间隔提醒")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 20)
+
+                        Text("自定义间隔请在添加页面直接设置")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 20)
                     }
 
                     // 每周选项
@@ -877,14 +1046,14 @@ struct RepeatRulePickerView: View {
                             .padding(.top, 10)
 
                         Button(action: {
-                            selectedRule = .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
+                            selectedRule = workdayRule
                             dismiss()
                         }) {
                             HStack {
                                 Text("工作日（周一到周五）")
                                     .font(.body)
                                 Spacer()
-                                if selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) {
+                                if isSelected(workdayRule) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.blue)
                                 } else {
@@ -899,21 +1068,21 @@ struct RepeatRulePickerView: View {
                                     .fill(Color(NSColor.controlBackgroundColor))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .stroke(selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]) ? 2 : 1)
+                                            .stroke(isSelected(workdayRule) ? Color.blue : Color.gray.opacity(0.3), lineWidth: isSelected(workdayRule) ? 2 : 1)
                                     )
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
 
                         Button(action: {
-                            selectedRule = .weekly([.saturday, .sunday])
+                            selectedRule = weekendRule
                             dismiss()
                         }) {
                             HStack {
                                 Text("周末（周六和周日）")
                                     .font(.body)
                                 Spacer()
-                                if selectedRule == .weekly([.saturday, .sunday]) {
+                                if isSelected(weekendRule) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundColor(.blue)
                                 } else {
@@ -928,7 +1097,7 @@ struct RepeatRulePickerView: View {
                                     .fill(Color(NSColor.controlBackgroundColor))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .stroke(selectedRule == .weekly([.saturday, .sunday]) ? Color.blue : Color.gray.opacity(0.3), lineWidth: selectedRule == .weekly([.saturday, .sunday]) ? 2 : 1)
+                                            .stroke(isSelected(weekendRule) ? Color.blue : Color.gray.opacity(0.3), lineWidth: isSelected(weekendRule) ? 2 : 1)
                                     )
                             )
                         }

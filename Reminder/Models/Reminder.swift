@@ -123,6 +123,11 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
     case weekly([Weekday])
     case monthly(Int) // Day of month
     case yearly(Int, Int) // Month, Day
+    case intervalMinutes(Int) // Every N minutes
+
+    // Common weekday presets for clearer comparisons
+    static let workdayWeekdays: Set<Weekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
+    static let weekendWeekdays: Set<Weekday> = [.saturday, .sunday]
 
     var description: String {
         switch self {
@@ -131,16 +136,28 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
         case .daily:
             return "每天"
         case .weekly(let weekdays):
-            if weekdays.count == 7 {
+            let weekdaySet = Set(weekdays)
+            if weekdaySet == RepeatRule.workdayWeekdays {
+                return "工作日（周一到周五）"
+            }
+            if weekdaySet == RepeatRule.weekendWeekdays {
+                return "周末（周六和周日）"
+            }
+            if weekdaySet.count == 7 {
                 return "每天"
             } else {
-                let weekdayNames = weekdays.map { $0.shortName }.joined(separator: ", ")
+                let weekdayNames = weekdays
+                    .sorted { $0.rawValue < $1.rawValue }
+                    .map { $0.shortName }
+                    .joined(separator: ", ")
                 return "每周：\(weekdayNames)"
             }
         case .monthly(let day):
             return "每月 \(day) 日"
         case .yearly(let month, let day):
             return "每年 \(month) 月 \(day) 日"
+        case .intervalMinutes(let minutes):
+            return RepeatRule.formattedIntervalDescription(minutes: minutes)
         }
     }
 
@@ -151,7 +168,14 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
         case .daily:
             return "每日"
         case .weekly(let weekdays):
-            if weekdays.count == 7 {
+            let weekdaySet = Set(weekdays)
+            if weekdaySet == RepeatRule.workdayWeekdays {
+                return "工作日"
+            }
+            if weekdaySet == RepeatRule.weekendWeekdays {
+                return "周末"
+            }
+            if weekdaySet.count == 7 {
                 return "每日"
             } else if weekdays.count == 1 {
                 return "每周\(weekdays.first?.shortName ?? "")"
@@ -162,6 +186,8 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
             return "每月"
         case .yearly:
             return "每年"
+        case .intervalMinutes(let minutes):
+            return RepeatRule.formattedIntervalShort(minutes: minutes)
         }
     }
 
@@ -169,11 +195,57 @@ enum RepeatRule: Codable, CaseIterable, Hashable {
         return [
             .never,
             .daily,
+            .intervalMinutes(30),
             .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]),
             .weekly([.saturday, .sunday]),
             .monthly(1),
             .yearly(1, 1)
         ]
+    }
+
+    func isSame(as other: RepeatRule) -> Bool {
+        switch (self, other) {
+        case (.never, .never), (.daily, .daily):
+            return true
+        case (.weekly(let lhs), .weekly(let rhs)):
+            return Set(lhs) == Set(rhs)
+        case (.monthly(let lhsDay), .monthly(let rhsDay)):
+            return lhsDay == rhsDay
+        case (.yearly(let lhsMonth, let lhsDay), .yearly(let rhsMonth, let rhsDay)):
+            return lhsMonth == rhsMonth && lhsDay == rhsDay
+        case (.intervalMinutes(let lhsMinutes), .intervalMinutes(let rhsMinutes)):
+            return lhsMinutes == rhsMinutes
+        default:
+            return false
+        }
+    }
+
+    private static func formattedIntervalDescription(minutes: Int) -> String {
+        guard minutes > 0 else { return "自定义间隔" }
+        if minutes % 60 == 0 {
+            let hours = minutes / 60
+            return "每\(hours)小时"
+        }
+        if minutes > 60 {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            return "每\(hours)小时\(remainingMinutes)分钟"
+        }
+        return "每\(minutes)分钟"
+    }
+
+    private static func formattedIntervalShort(minutes: Int) -> String {
+        guard minutes > 0 else { return "间隔" }
+        if minutes % 60 == 0 {
+            let hours = minutes / 60
+            return "每\(hours)小时"
+        }
+        if minutes > 60 {
+            let hours = minutes / 60
+            let remainingMinutes = minutes % 60
+            return "每\(hours)小时\(remainingMinutes)分钟"
+        }
+        return "每\(minutes)分钟"
     }
 }
 

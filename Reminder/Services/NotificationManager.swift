@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 @MainActor
-class NotificationManager: ObservableObject {
+class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
 
     private let notificationCenter = UNUserNotificationCenter.current()
@@ -15,7 +15,9 @@ class NotificationManager: ObservableObject {
     @Published var isAuthorized = false
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
 
-    private init() {
+    private override init() {
+        super.init()
+        notificationCenter.delegate = self
         Task {
             await checkAuthorizationStatus()
         }
@@ -40,6 +42,7 @@ class NotificationManager: ObservableObject {
             // Configure notification settings
             #if os(iOS)
             await MainActor.run {
+                notificationCenter.delegate = self
                 // Set default notification settings
                 let notificationCenter = UNUserNotificationCenter.current()
                 notificationCenter.getNotificationSettings { settings in
@@ -95,6 +98,9 @@ class NotificationManager: ObservableObject {
             "reminderID": reminder.id.uuidString,
             "reminderType": reminder.type.rawValue
         ]
+        if let iconAttachment = makeAppIconAttachment() {
+            content.attachments = [iconAttachment]
+        }
 
         // Don't set badge here - let the system manage it when notification is actually delivered
 
@@ -225,10 +231,11 @@ class NotificationManager: ObservableObject {
         reminder.lastTriggered = Date()
         reminder.updatedAt = Date()
 
-        // If non-repeating, remove after first trigger
+        // If non-repeating, mark inactive after first trigger
         if case .never = reminder.repeatRule {
             cancelNotification(for: reminder)
-            modelContext.delete(reminder)
+            reminder.isActive = false
+            reminder.notificationID = nil
             try? modelContext.save()
             await clearBadge()
             return
@@ -368,6 +375,9 @@ class NotificationManager: ObservableObject {
         ]
         // 设置延迟提醒的优先级为 critical
         content.interruptionLevel = .critical
+        if let iconAttachment = makeAppIconAttachment() {
+            content.attachments = [iconAttachment]
+        }
 
         // Trigger after default snooze interval
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: AppConstants.defaultSnoozeInterval, repeats: false)
@@ -401,5 +411,79 @@ class NotificationManager: ObservableObject {
 extension NotificationManager {
     private var calendar: Calendar {
         Calendar.current
+    }
+
+    #if os(iOS)
+    private func makeAppIconAttachment() -> UNNotificationAttachment? {
+        guard let image = appIconImage(),
+              let data = image.pngData() else { return nil }
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("app-icon-\(UUID().uuidString).png")
+        do {
+            try data.write(to: url)
+            let attachment = try UNNotificationAttachment(identifier: "app-icon", url: url, options: nil)
+            return attachment
+        } catch {
+            print("Failed to attach app icon: \(error)")
+            return nil
+        }
+    }
+
+    private func appIconImage() -> UIImage? {
+        if let messages = UIImage(named: "MessagesIcon") {
+            return resizeForNotification(messages)
+        }
+        if let bundled = UIImage(named: "NotificationIcon") {
+            return resizeForNotification(bundled)
+        }
+        guard
+            let iconsDictionary = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+            let primaryIcons = iconsDictionary["CFBundlePrimaryIcon"] as? [String: Any],
+            let iconFiles = primaryIcons["CFBundleIconFiles"] as? [String],
+            let lastIcon = iconFiles.last,
+            let image = UIImage(named: lastIcon)
+        else {
+            return nil
+        }
+        return resizeForNotification(image)
+    }
+
+    private func resizeForNotification(_ image: UIImage, maxSize: CGFloat = 128) -> UIImage? {
+        let longestSide = max(image.size.width, image.size.height)
+        guard longestSide > 0 else { return image }
+        let scaleRatio = maxSize / longestSide
+        if scaleRatio >= 1 { return image }
+
+        let newSize = CGSize(width: image.size.width * scaleRatio, height: image.size.height * scaleRatio)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+    }
+    #else
+    private func makeAppIconAttachment() -> UNNotificationAttachment? { nil }
+    #endif
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+extension NotificationManager: UNUserNotificationCenterDelegate {
+    // Show banner/list even when app is前台，确保看到带app图标的系统通知
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        Task {
+            await handleNotificationResponse(response)
+            completionHandler()
+        }
     }
 }

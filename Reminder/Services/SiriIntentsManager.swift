@@ -53,6 +53,7 @@ class SiriIntentsManager: NSObject, ObservableObject {
             case "每天": repeatRule = .daily
             case "每周": repeatRule = .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
             case "周末": repeatRule = .weekly([.saturday, .sunday])
+            case "每30分钟", "每30分", "半小时": repeatRule = .intervalMinutes(30)
             case "每月": repeatRule = .monthly(1)
             default: repeatRule = .never
             }

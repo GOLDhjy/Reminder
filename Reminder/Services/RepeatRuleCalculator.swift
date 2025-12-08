@@ -14,6 +14,17 @@ struct RepeatRuleCalculator {
         // Extract time component
         let timeComponents = calendar.dateComponents([.hour, .minute], from: timeOfDay)
 
+        if case .intervalMinutes(let minutes) = rule {
+            return nextIntervalTrigger(
+                from: date,
+                minutes: minutes,
+                startDate: startDate,
+                endDate: endDate,
+                excludeHolidays: excludeHolidays,
+                timeComponents: timeComponents
+            )
+        }
+
         // One-time reminders use their start day and do not repeat
         if case .never = rule {
             let baseDay = calendar.startOfDay(for: startDate)
@@ -107,6 +118,9 @@ struct RepeatRuleCalculator {
         case .daily:
             return date >= startDate
 
+        case .intervalMinutes:
+            return date >= startDate
+
         case .weekly(let weekdays):
             guard let weekday = calendar.dateComponents([.weekday], from: date).weekday,
                   let weekDay = Weekday(rawValue: weekday) else {
@@ -123,6 +137,76 @@ struct RepeatRuleCalculator {
             let dayOfMonth = calendar.component(.day, from: date)
             return monthOfYear == month && dayOfMonth == day && date >= startDate
         }
+    }
+
+    private func nextIntervalTrigger(
+        from date: Date,
+        minutes: Int,
+        startDate: Date,
+        endDate: Date?,
+        excludeHolidays: Bool,
+        timeComponents: DateComponents
+    ) -> Date? {
+        guard minutes > 0 else { return nil }
+
+        let intervalSeconds = Double(minutes * 60)
+        let startDay = calendar.startOfDay(for: startDate)
+        guard let anchor = calendar.date(
+            bySettingHour: timeComponents.hour ?? 0,
+            minute: timeComponents.minute ?? 0,
+            second: 0,
+            of: startDay
+        ) else {
+            return nil
+        }
+
+        let baseline = max(anchor, startDate)
+        let now = max(date, startDate)
+
+        let candidate: Date
+        if now < baseline {
+            candidate = baseline
+        } else {
+            let elapsed = now.timeIntervalSince(baseline)
+            let intervalsElapsed = floor(elapsed / intervalSeconds) + 1
+            candidate = baseline.addingTimeInterval(intervalSeconds * intervalsElapsed)
+        }
+
+        if let endDate {
+            let inclusiveEnd = calendar.date(
+                bySettingHour: 23,
+                minute: 59,
+                second: 59,
+                of: endDate
+            ) ?? endDate
+
+            if candidate > inclusiveEnd {
+                return nil
+            }
+        }
+
+        if excludeHolidays && isHoliday(candidate) {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: candidate)),
+                  let nextDayAnchor = calendar.date(
+                    bySettingHour: timeComponents.hour ?? 0,
+                    minute: timeComponents.minute ?? 0,
+                    second: 0,
+                    of: nextDay
+                  ) else {
+                return nil
+            }
+
+            return nextIntervalTrigger(
+                from: nextDayAnchor,
+                minutes: minutes,
+                startDate: nextDayAnchor,
+                endDate: endDate,
+                excludeHolidays: excludeHolidays,
+                timeComponents: timeComponents
+            )
+        }
+
+        return candidate
     }
 
     private func isHoliday(_ date: Date) -> Bool {
