@@ -75,6 +75,12 @@ class NotificationManager: NSObject, ObservableObject {
             throw NotificationError.notAuthorized
         }
 
+        // TODO 类型不需要调度通知
+        if reminder.type == .todo {
+            reminder.notificationID = nil
+            return
+        }
+
         // Cancel existing notification if any
         if let notificationID = reminder.notificationID {
             cancelNotification(withID: notificationID)

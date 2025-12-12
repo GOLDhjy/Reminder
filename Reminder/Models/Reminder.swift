@@ -69,7 +69,9 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
     case sleep = "睡觉"
     case medicine = "吃药"
     case exercise = "运动"
+    case todo = "待办事项"
     case custom = "自定义"
+    case timer = "计时任务"
 
     var id: String { rawValue }
 
@@ -82,7 +84,9 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         case .sleep: return "bed.double.fill"
         case .medicine: return "pills.fill"
         case .exercise: return "figure.run"
+        case .todo: return "checkmark.circle.fill"
         case .custom: return "star.fill"
+        case .timer: return "timer"
         }
     }
 
@@ -99,7 +103,9 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         case .sleep: return "😴"
         case .medicine: return "💊"
         case .exercise: return "🏃"
+        case .todo: return "✅"
         case .custom: return "📝"
+        case .timer: return "⏰"
         }
     }
 
@@ -112,7 +118,9 @@ enum ReminderType: String, CaseIterable, Codable, Identifiable, Hashable {
         case .sleep: return "purple"
         case .medicine: return "red"
         case .exercise: return "mint"
+        case .todo: return "indigo"
         case .custom: return "gray"
+        case .timer: return "timer"
         }
     }
 }

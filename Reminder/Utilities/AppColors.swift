@@ -63,7 +63,13 @@ struct AppColors {
     )
 
     /// Navigation/Toolbar background
-    static let navigationBackground = Color(UIColor.systemBackground)
+    static let navigationBackground = {
+        #if canImport(UIKit)
+        return Color(UIColor.systemBackground)
+        #else
+        return Color(NSColor.controlBackgroundColor)
+        #endif
+    }()
 
     // MARK: - Type-specific Colors
     static let water = Color(red: 132/255, green: 178/255, blue: 202/255)
@@ -73,7 +79,9 @@ struct AppColors {
     static let medicine = Color(red: 206/255, green: 120/255, blue: 120/255)
     static let exercise = Color(red: 199/255, green: 166/255, blue: 110/255)
     static let cooking = Color(red: 205/255, green: 142/255, blue: 92/255)
+    static let todo = Color(red: 99/255, green: 102/255, blue: 241/255)  // Indigo color
     static let custom = Color(red: 155/255, green: 155/255, blue: 155/255)
+    static let timer = Color(red: 175/255, green: 122/255, blue: 197/255)  // Purple color for timer tasks
 
     // MARK: - Status Colors
     static let success = Color(red: 164/255, green: 183/255, blue: 120/255)
@@ -105,10 +113,13 @@ struct AppColors {
         case .sleep: return sleep
         case .medicine: return medicine
         case .exercise: return exercise
+        case .todo: return todo
         case .custom: return custom
+        case .timer: return timer
         }
     }
 
+    
     // MARK: - Helpers
     private static func adaptiveColor(
         light: (Double, Double, Double),

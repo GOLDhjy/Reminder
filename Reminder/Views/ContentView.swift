@@ -16,25 +16,29 @@ extension Optional {
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Reminder.createdAt, order: .forward) private var reminders: [Reminder]
+    @Query(sort: \Reminder.createdAt, order: .reverse) private var reminders: [Reminder]
     @State private var showingAddReminder = false
+    @State private var showingAddTodo = false
     @State private var showingSettings = false
     @State private var selectedType: ReminderType?
     @State private var editingReminder: Reminder?
+    @State private var todoEditReminder: Reminder?
+    @State private var timerEditReminder: Reminder?
     @State private var showingTimerSheet = false
     @State private var showingCreateOptions = false
+    @State private var testTodoCreated = false
 
     private let useCustomList = true
 
     var body: some View {
         wrapWithSheets(rootView)
-        .task {
-            cleanupExpiredOneTimeReminders()
-        }
-        .onChange(of: reminders) { _ in
-            cleanupExpiredOneTimeReminders()
-        }
-    }
+            .task {
+                cleanupExpiredOneTimeReminders()
+            }
+            .onChange(of: reminders) { _ in
+                cleanupExpiredOneTimeReminders()
+            }
+      }
 
     private var splitView: some View {
         NavigationSplitView {
@@ -121,7 +125,7 @@ struct ContentView: View {
     private var trailingMenuiOS: some View {
         Menu {
             Button(action: { showingTimerSheet = true }) {
-                Label("定时任务", systemImage: "timer")
+                Label("计时任务", systemImage: "timer")
             }
 
             Button(action: { showingSettings = true }) {
@@ -154,11 +158,11 @@ struct ContentView: View {
             }
 
             Button(action: { showingTimerSheet = true }) {
-                Label("定时任务", systemImage: "timer")
+                Label("计时任务", systemImage: "timer")
             }
 
             Menu("快速添加") {
-                ForEach(ReminderType.allCases.filter({ $0 != .custom }), id: \.self) { type in
+                ForEach(ReminderType.allCases.filter({ $0 != .custom && $0 != .todo && $0 != .timer }), id: \.self) { type in
                     Button(action: { quickAddReminder(type: type) }) {
                         Label(type.rawValue, systemImage: type.icon)
                     }
@@ -188,6 +192,9 @@ struct ContentView: View {
             .sheet(isPresented: $showingAddReminder) {
                 AddReminderView()
             }
+            .sheet(isPresented: $showingAddTodo) {
+                AddReminderView(isTodoMode: true)
+            }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
@@ -196,6 +203,12 @@ struct ContentView: View {
             }
             .sheet(item: $editingReminder) { reminder in
                 AddReminderView(reminder: reminder)
+            }
+            .sheet(item: $timerEditReminder) { reminder in
+                TimerTaskSheet(reminder: reminder)
+            }
+            .sheet(item: $todoEditReminder) { reminder in
+                AddReminderView(reminder: reminder, isTodoMode: true)
             }
             .sheet(isPresented: $showingCreateOptions) {
                 CreateChooserSheet(
@@ -209,6 +222,12 @@ struct ContentView: View {
                         showingCreateOptions = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             showingAddReminder = true
+                        }
+                    },
+                    onSelectTodo: {
+                        showingCreateOptions = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            showingAddTodo = true
                         }
                     }
                 )
@@ -262,10 +281,48 @@ struct ContentView: View {
                 }
             }
 
-            // Active Reminders with better spacing
-            if !activeReminders.isEmpty {
+            // TODO 事项（进行中）
+            if !activeTodoReminders.isEmpty {
                 Section {
-                    ForEach(activeReminders) { reminder in
+                    ForEach(activeTodoReminders) { reminder in
+                        ReminderRow(
+                            reminder: reminder,
+                            onTap: { todoEditReminder = reminder },
+                            onToggle: {
+                                modelContext.delete(reminder)
+                                try? modelContext.save()
+                            }
+                        )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button("删除", role: .destructive) {
+                                deleteReminder(reminder)
+                            }
+                        }
+                        .swipeActions(edge: .leading) {
+                            Button("完成") {
+                                modelContext.delete(reminder)
+                                try? modelContext.save()
+                            }
+                            .tint(AppColors.todo)
+                        }
+                    }
+                } header: {
+                    SectionHeaderRow(
+                        icon: "checkmark.circle.fill",
+                        title: "待办事项",
+                        count: activeTodoReminders.count,
+                        tint: AppColors.todo
+                    )
+                }
+            }
+
+            
+            // Active Reminders with better spacing
+            if !activeTimedReminders.isEmpty {
+                Section {
+                    ForEach(activeTimedReminders) { reminder in
                         ReminderRow(
                             reminder: reminder,
                             onTap: { editReminder(reminder) },
@@ -289,16 +346,16 @@ struct ContentView: View {
                     SectionHeaderRow(
                         icon: "bell.fill",
                         title: "进行中的提醒",
-                        count: activeReminders.count,
+                        count: activeTimedReminders.count,
                         tint: AppColors.primary
                     )
                 }
             }
 
-            // Completed/Inactive Reminders
-            if !inactiveReminders.isEmpty {
+            // 已暂停/完成的提醒
+            if !inactiveTimedReminders.isEmpty {
                 Section {
-                    ForEach(inactiveReminders) { reminder in
+                    ForEach(inactiveTimedReminders) { reminder in
                         ReminderRow(
                             reminder: reminder,
                             onTap: { editReminder(reminder) },
@@ -323,7 +380,7 @@ struct ContentView: View {
                     SectionHeaderRow(
                         icon: "pause.circle.fill",
                         title: "已暂停/完成",
-                        count: inactiveReminders.count,
+                        count: inactiveTimedReminders.count,
                         tint: AppColors.custom
                     )
                 }
@@ -347,30 +404,41 @@ struct ContentView: View {
 #else
         .listStyle(.automatic)
 #endif
+
+        // Add bottom padding to avoid button overlap
+        .padding(.bottom, 100)
     }
 
     private var customListContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                if !selectedType.isNil {
-                    filterCard
+                // TODO 部分
+                if !activeTodoReminders.isEmpty {
+                    sectionBlock(
+                        icon: "checkmark.circle.fill",
+                        title: "待办事项",
+                        tint: AppColors.todo,
+                        reminders: activeTodoReminders
+                    )
                 }
 
-                if !activeReminders.isEmpty {
+                // 活跃的定时提醒
+                if !activeTimedReminders.isEmpty {
                     sectionBlock(
                         icon: "bell.fill",
                         title: "进行中的提醒",
                         tint: AppColors.primary,
-                        reminders: activeReminders
+                        reminders: activeTimedReminders
                     )
                 }
 
-                if !inactiveReminders.isEmpty {
+                // 已暂停的提醒
+                if !inactiveTimedReminders.isEmpty {
                     sectionBlock(
                         icon: "pause.circle.fill",
                         title: "已暂停/完成",
                         tint: AppColors.custom,
-                        reminders: inactiveReminders
+                        reminders: inactiveTimedReminders
                     )
                 }
 
@@ -379,7 +447,7 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.bottom, 100)  // Add bottom padding to avoid button overlap
         }
         .background(AppColors.formBackground.ignoresSafeArea())
     }
@@ -415,15 +483,47 @@ struct ContentView: View {
                 ForEach(reminders) { reminder in
                     ReminderRow(
                         reminder: reminder,
-                        onTap: { editReminder(reminder) },
-                        onToggle: { toggleReminder(reminder) }
+                        onTap: {
+                            if reminder.type == .todo {
+                                todoEditReminder = reminder
+                            } else if reminder.type == .timer {
+                                timerEditReminder = reminder
+                            } else {
+                                editReminder(reminder)
+                            }
+                        },
+                        onToggle: {
+                            if reminder.type == .todo {
+                                modelContext.delete(reminder)
+                                try? modelContext.save()
+                            } else {
+                                toggleReminder(reminder)
+                            }
+                        }
                     )
                     .contextMenu {
-                        Button(reminder.isActive ? "暂停" : "启用") {
-                            toggleReminder(reminder)
-                        }
-                        Button("编辑") {
-                            editReminder(reminder)
+                        if reminder.type == .todo {
+                            Button("编辑") {
+                                todoEditReminder = reminder
+                            }
+                            Button("完成") {
+                                modelContext.delete(reminder)
+                                try? modelContext.save()
+                            }
+                        } else if reminder.type == .timer {
+                            Button(reminder.isActive ? "暂停" : "启用") {
+                                toggleReminder(reminder)
+                            }
+                            Button("编辑计时") {
+                                timerEditReminder = reminder
+                            }
+                        } else {
+                            Button(reminder.isActive ? "暂停" : "启用") {
+                                toggleReminder(reminder)
+                            }
+                            Button("编辑") {
+                                editReminder(reminder)
+                            }
                         }
                         Button("删除", role: .destructive) {
                             deleteReminder(reminder)
@@ -468,14 +568,20 @@ struct ContentView: View {
         )
     }
 
-    private var activeReminders: [Reminder] {
-        let filtered = reminders.filter { $0.isActive }
+    // TODO 事项（活跃的）
+    private var activeTodoReminders: [Reminder] {
+        let filtered = reminders.filter { $0.type == .todo && $0.isActive }
+        return filtered.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    // 有时间的提醒（活跃的）
+    private var activeTimedReminders: [Reminder] {
+        let filtered = reminders.filter { $0.isActive && $0.type != .todo }
         let typeFiltered = if let selectedType = selectedType {
             filtered.filter { $0.type == selectedType }
         } else {
             filtered
         }
-        // Sort by next trigger date (computed property)
         return typeFiltered.sorted { reminder1, reminder2 in
             let date1 = reminder1.nextTriggerDate ?? Date.distantFuture
             let date2 = reminder2.nextTriggerDate ?? Date.distantFuture
@@ -483,8 +589,9 @@ struct ContentView: View {
         }
     }
 
-    private var inactiveReminders: [Reminder] {
-        let filtered = reminders.filter { !$0.isActive }
+    // 有时间的提醒（已暂停/完成的）
+    private var inactiveTimedReminders: [Reminder] {
+        let filtered = reminders.filter { !$0.isActive && $0.type != .todo }
         if let selectedType = selectedType {
             return filtered.filter { $0.type == selectedType }
         }
@@ -517,6 +624,12 @@ struct ContentView: View {
             case .exercise:
                 // Default to evening
                 return calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now
+            case .todo:
+                // Should not reach here since we filter out todo in quickAddReminder
+                return now
+            case .timer:
+                // Should not reach here since we filter out timer in quickAddReminder
+                return now
             case .custom:
                 return now
             }
@@ -535,6 +648,12 @@ struct ContentView: View {
     }
 
     private func toggleReminder(_ reminder: Reminder) {
+        // 如果是 TODO 类型，完成时直接删除
+        if reminder.type == .todo && reminder.isActive {
+            deleteReminder(reminder)
+            return
+        }
+
         let willActivate = !reminder.isActive
         reminder.isActive.toggle()
         reminder.updatedAt = Date()
@@ -571,6 +690,8 @@ struct ContentView: View {
     private func cleanupExpiredOneTimeReminders() {
         let expired = reminders.filter { reminder in
             guard reminder.isActive else { return false }
+            // Skip TODO types - they don't have trigger dates
+            guard reminder.type != .todo else { return false }
             guard case .never = reminder.repeatRule else { return false }
             return reminder.nextTriggerDate == nil
         }
@@ -601,16 +722,54 @@ struct ContentView: View {
     private func saveAndSchedule(reminder: Reminder) {
         do {
             try modelContext.save()
-            Task {
-                if reminder.isActive {
-                    try await NotificationManager.shared.scheduleNotification(for: reminder)
-                } else {
-                    NotificationManager.shared.cancelNotification(for: reminder)
+            // 对于 TODO 类型，不需要调度通知
+            if reminder.type != .todo {
+                Task {
+                    if reminder.isActive {
+                        try await NotificationManager.shared.scheduleNotification(for: reminder)
+                    } else {
+                        NotificationManager.shared.cancelNotification(for: reminder)
+                    }
                 }
             }
         } catch {
             print("Failed to save reminder: \(error)")
         }
+    }
+}
+
+// MARK: - Simple TODO Row
+struct SimpleTodoRow: View {
+    let reminder: Reminder
+    let onComplete: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(reminder.title)
+                    .font(.headline)
+
+                if let notes = reminder.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("创建于 \(reminder.createdAt, format: .dateTime.month().day().hour().minute())")
+                    .font(.caption2)
+                    .foregroundColor(AppColors.todo)
+            }
+
+            Spacer()
+
+            Button(action: onComplete) {
+                Image(systemName: "circle")
+                    .foregroundColor(AppColors.todo)
+                    .font(.title2)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -663,42 +822,80 @@ struct ReminderRow: View {
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    if reminder.type == .timer {
+                        Image(systemName: "timer")
+                            .font(.caption)
+                            .foregroundColor(AppColors.timer)
+                    }
                     Text(reminder.title)
                         .font(.headline)
                         .foregroundColor(.primary)
                         .lineLimit(1)
+                }
 
-                    HStack(spacing: 8) {
-                        Image(systemName: "repeat")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(reminder.repeatRule.description)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("·")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(reminder.timeOfDay, style: .time)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    // 如果是 TODO 类型，显示不同的信息
+                    if reminder.type == .todo {
+                        if let notes = reminder.notes, !notes.isEmpty {
+                            Text(notes)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
 
-                    if let nextTrigger = reminder.nextTriggerDate {
-                        Text(timeUntil(nextTrigger))
+                        Text("创建于 \(reminder.createdAt, format: .dateTime.month().day())")
                             .font(.caption2)
-                            .foregroundColor(AppColors.colorForType(reminder.type))
+                            .foregroundColor(AppColors.todo)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(AppColors.colorForType(reminder.type).opacity(0.12))
+                            .background(AppColors.todo.opacity(0.12))
                             .clipShape(Capsule())
+                    } else {
+                        // 原有的计时提醒显示逻辑
+                        HStack(spacing: 8) {
+                            Image(systemName: "repeat")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(reminder.repeatRule.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text("·")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(reminder.timeOfDay, style: .time)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if let nextTrigger = reminder.nextTriggerDate {
+                            Text(timeUntil(nextTrigger))
+                                .font(.caption2)
+                                .foregroundColor(AppColors.colorForType(reminder.type))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(AppColors.colorForType(reminder.type).opacity(0.12))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
 
                 Spacer()
 
-                Toggle("", isOn: toggleBinding)
-                    .labelsHidden()
-                    .tint(AppColors.primary)
+                // 根据类型显示不同的控件
+                if reminder.type == .todo {
+                    // TODO 类型显示勾选框
+                    Button(action: onToggle) {
+                        Image(systemName: "circle")
+                            .foregroundColor(AppColors.todo)
+                            .font(.title2)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    // 其他类型显示 Toggle
+                    Toggle("", isOn: toggleBinding)
+                        .labelsHidden()
+                        .tint(AppColors.primary)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -721,6 +918,7 @@ private struct QuickActionButton: View {
 private struct CreateChooserSheet: View {
     let onSelectTimer: () -> Void
     let onSelectReminder: () -> Void
+    let onSelectTodo: () -> Void
 
     var body: some View {
         VStack(spacing: 16) {
@@ -735,19 +933,27 @@ private struct CreateChooserSheet: View {
 
             VStack(spacing: 12) {
                 CreateOptionCard(
-                    title: "定时任务",
+                    title: "计时任务",
                     subtitle: "倒计时提醒",
                     systemImage: "timer",
-                    tint: AppColors.warning,
+                    tint: AppColors.timer,
                     action: onSelectTimer
                 )
 
                 CreateOptionCard(
-                    title: "添加提醒",
+                    title: "时间提醒",
                     subtitle: "自定义时间",
                     systemImage: "plus.circle",
                     tint: AppColors.primary,
                     action: onSelectReminder
+                )
+
+                CreateOptionCard(
+                    title: "待办事项",
+                    subtitle: "无时间提醒的任务",
+                    systemImage: "checkmark.circle",
+                    tint: AppColors.todo,
+                    action: onSelectTodo
                 )
             }
             .padding(.horizontal, 16)
@@ -756,7 +962,7 @@ private struct CreateChooserSheet: View {
         }
         .padding(.bottom, 20)
         .background(AppColors.background)
-        .presentationDetents([.medium, .fraction(0.55)])
+        .presentationDetents([.medium, .fraction(0.65)])
     }
 }
 

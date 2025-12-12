@@ -13,6 +13,7 @@ struct AddReminderView: View {
     @Environment(\.dismiss) private var dismiss
 
     var reminder: Reminder?
+    var isTodoMode: Bool = false
 
     @State private var title = ""
     @State private var notes = ""
@@ -38,7 +39,13 @@ struct AddReminderView: View {
     }
 
     private var navigationTitle: String {
-        isEditing ? "编辑提醒" : "添加提醒"
+        if isEditing {
+            return "编辑提醒"
+        } else if isTodoMode {
+            return "添加待办事项"
+        } else {
+            return "添加提醒"
+        }
     }
 
     init() {
@@ -75,6 +82,38 @@ struct AddReminderView: View {
         _userEditedTitle = State(initialValue: true)
     }
 
+    init(isTodoMode: Bool) {
+        self.reminder = nil
+        self.isTodoMode = isTodoMode
+
+        if isTodoMode {
+            _selectedType = State(initialValue: .todo)
+            _selectedRepeatRule = State(initialValue: .never)
+        }
+    }
+
+    init(reminder: Reminder, isTodoMode: Bool) {
+        self.reminder = reminder
+        self.isTodoMode = isTodoMode
+
+        // Initialize state with existing reminder values
+        _title = State(initialValue: reminder.title)
+        _notes = State(initialValue: reminder.notes ?? "")
+        _selectedType = State(initialValue: reminder.type)
+        _selectedTime = State(initialValue: reminder.timeOfDay)
+        _selectedRepeatRule = State(initialValue: reminder.repeatRule)
+        _excludeHolidays = State(initialValue: reminder.excludeHolidays)
+        _startDate = State(initialValue: reminder.startDate)
+        _endDate = State(initialValue: reminder.endDate ?? Date())
+        _hasEndDate = State(initialValue: reminder.endDate != nil)
+        _userEditedTitle = State(initialValue: true)
+
+        // Handle weekdays for weekly repeat rule
+        if case .weekly(let weekdays) = reminder.repeatRule {
+            _selectedWeekdays = State(initialValue: Set(weekdays))
+        }
+    }
+
     var body: some View {
 #if os(iOS)
         NavigationStack {
@@ -85,12 +124,16 @@ struct AddReminderView: View {
                     VStack(spacing: 20) {
                         headerCard
 
-                        typeGridSection
+                        if !isTodoMode {
+                            typeGridSection
+                        }
                         titleSection
-                        repeatChipsSection
-                        timeCardSection
                         notesSection
-                        quickTemplatesSection
+                        if !isTodoMode {
+                            repeatChipsSection
+                            timeCardSection
+                            quickTemplatesSection
+                        }
 
                         saveButton
                     }
@@ -249,9 +292,12 @@ struct AddReminderView: View {
         do {
             try modelContext.save()
 
-            // Schedule notification
-            Task {
-                try await NotificationManager.shared.scheduleNotification(for: reminder)
+  
+            // Schedule notification only for non-TODO reminders
+            if reminder.type != .todo {
+                Task {
+                    try await NotificationManager.shared.scheduleNotification(for: reminder)
+                }
             }
 
             dismiss()
@@ -307,7 +353,7 @@ struct AddReminderView: View {
 
             // Type Selection
             Picker("提醒类型", selection: $selectedType) {
-                ForEach(ReminderType.allCases, id: \.self) { type in
+                ForEach(ReminderType.allCases.filter { isTodoMode ? true : $0 != .todo }, id: \.self) { type in
                     HStack {
                         Image(systemName: type.icon)
                             .foregroundColor(colorForType(type))
@@ -443,11 +489,11 @@ private extension AddReminderView {
                     .foregroundColor(AppColors.colorForType(selectedType))
                     .font(.title2.weight(.bold))
             }
-            Text("安排一个贴心提醒")
+            Text(isTodoMode ? "创建一个待办事项" : "安排一个贴心提醒")
                 .font(.title3.weight(.semibold))
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
-            Text("选个类型、起个名字，再定下频率和时间")
+            Text(isTodoMode ? "给它起个名字，稍后可再补充备注" : "选个类型、起个名字，再定下频率和时间")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -472,7 +518,7 @@ private extension AddReminderView {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(ReminderType.allCases, id: \.self) { type in
+                ForEach(ReminderType.allCases.filter { isTodoMode ? true : $0 != .todo }, id: \.self) { type in
                     Button {
                         selectedType = type
                         applyAutoTitleIfNeeded(for: type)
