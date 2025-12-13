@@ -26,7 +26,6 @@ struct ContentView: View {
     @State private var timerEditReminder: Reminder?
     @State private var showingTimerSheet = false
     @State private var showingCreateOptions = false
-    @State private var testTodoCreated = false
 
     private let useCustomList = true
 
@@ -124,24 +123,8 @@ struct ContentView: View {
 
     private var trailingMenuiOS: some View {
         Menu {
-            Button(action: { showingTimerSheet = true }) {
-                Label("计时任务", systemImage: "timer")
-            }
-
             Button(action: { showingSettings = true }) {
                 Label("设置", systemImage: "gear")
-            }
-
-            Menu("筛选") {
-                Button("全部") {
-                    selectedType = nil
-                }
-                Divider()
-                ForEach(ReminderType.allCases, id: \.self) { type in
-                    Button(action: { selectedType = type }) {
-                        Label(type.rawValue, systemImage: type.icon)
-                    }
-                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -157,24 +140,9 @@ struct ContentView: View {
                 Label("设置", systemImage: "gear")
             }
 
-            Button(action: { showingTimerSheet = true }) {
-                Label("计时任务", systemImage: "timer")
-            }
-
             Menu("快速添加") {
                 ForEach(ReminderType.allCases.filter({ $0 != .custom && $0 != .todo && $0 != .timer }), id: \.self) { type in
                     Button(action: { quickAddReminder(type: type) }) {
-                        Label(type.rawValue, systemImage: type.icon)
-                    }
-                }
-            }
-
-            Menu("筛选") {
-                Button("全部") {
-                    selectedType = nil
-                }
-                ForEach(ReminderType.allCases, id: \.self) { type in
-                    Button(action: { selectedType = type }) {
                         Label(type.rawValue, systemImage: type.icon)
                     }
                 }
@@ -190,10 +158,10 @@ struct ContentView: View {
     private func wrapWithSheets<Content: View>(_ content: Content) -> some View {
         content
             .sheet(isPresented: $showingAddReminder) {
-                AddReminderView()
+                CreateReminderView()
             }
             .sheet(isPresented: $showingAddTodo) {
-                AddReminderView(isTodoMode: true)
+                CreateReminderView(initialMode: .todo)
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
@@ -202,13 +170,13 @@ struct ContentView: View {
                 TimerTaskSheet()
             }
             .sheet(item: $editingReminder) { reminder in
-                AddReminderView(reminder: reminder)
+                CreateReminderView(reminder: reminder)
             }
             .sheet(item: $timerEditReminder) { reminder in
                 TimerTaskSheet(reminder: reminder)
             }
             .sheet(item: $todoEditReminder) { reminder in
-                AddReminderView(reminder: reminder, isTodoMode: true)
+                CreateReminderView(reminder: reminder)
             }
             .sheet(isPresented: $showingCreateOptions) {
                 CreateChooserSheet(

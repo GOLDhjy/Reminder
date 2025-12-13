@@ -50,10 +50,11 @@ struct TimerTaskSheet: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 16) {
-                    header
+                    // 说明文字
+                    infoCard
 
                     SectionCard(title: "提醒内容") {
                         VStack(alignment: .leading, spacing: 12) {
@@ -139,11 +140,47 @@ struct TimerTaskSheet: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
+              .padding(.horizontal, 16)
                 .padding(.bottom, 100)
-                .background(AppColors.formBackground)
+            }
+            .navigationTitle(reminder == nil ? "计时任务" : "编辑计时任务")
+            .navigationBarTitleDisplayMode(.large)
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    if reminder == nil {
+                        createTimerReminder()
+                    } else {
+                        updateTimerReminder()
+                    }
+                } label: {
+                    Text(reminder == nil ? "开始计时" : "保存修改")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(AppColors.timer)
+                        )
+                        .padding(.horizontal, 20)
+                        .shadow(color: AppColors.timer.opacity(0.35), radius: 10, x: 0, y: 5)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 0)
+                .padding(.bottom, 0)
+                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.5 : 1)
             }
         }
+        .background(AppColors.formBackground.ignoresSafeArea())
         .onAppear {
             if let reminder = reminder {
                 // 编辑模式：加载现有数据
@@ -154,50 +191,6 @@ struct TimerTaskSheet: View {
                 selectedPreset = nil  // 编辑模式下不选择预设
             }
         }
-        .toolbarBackground(AppColors.background, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button("取消") {
-                    dismiss()
-                }
-            }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(reminder == nil ? "开始计时" : "保存修改") {
-                    if reminder == nil {
-                        createTimerReminder()
-                    } else {
-                        updateTimerReminder()
-                    }
-                }
-                .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-
-        // Bottom primary button for clarity
-        .safeAreaInset(edge: .bottom) {
-            Button {
-                if reminder == nil {
-                    createTimerReminder()
-                } else {
-                    updateTimerReminder()
-                }
-            } label: {
-                Text(reminder == nil ? "开始计时" : "保存修改")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.timer)
-                    )
-                    .padding(.horizontal, 20)
-                    .shadow(color: AppColors.timer.opacity(0.35), radius: 10, x: 0, y: 5)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 10)
-            .padding(.bottom, 30)
-        }
     }
 
     private func selectPreset(_ preset: TimerPreset) {
@@ -206,27 +199,30 @@ struct TimerTaskSheet: View {
         durationMinutes = Double(preset.duration)
     }
 
-    private var header: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(AppColors.timer.opacity(0.15))
-                    .frame(width: 64, height: 64)
-                Image(systemName: "timer")
+    @ViewBuilder
+    private var infoCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "timer.fill")
                     .foregroundColor(AppColors.timer)
-                    .font(.title2.weight(.semibold))
+                Text("关于计时任务")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
-            Text(reminder == nil ? "计时任务" : "编辑计时任务")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.primary)
-            Text(reminder == nil ? "几分钟后提醒你，适合做饭/泡面/运动间隔" : "修改计时任务的设置")
-                .font(.footnote)
+
+            Text("计时任务是指定时间后提醒你，适合做饭、泡面、运动间隔等场景。一次性的计时提醒，完成后自动结束。")
+                .font(.subheadline)
                 .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .background(AppColors.cardElevated)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.timer.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(AppColors.timer.opacity(0.3), lineWidth: 1)
+                )
+        )
     }
 
     private func createTimerReminder() {
@@ -382,34 +378,6 @@ struct TimerPresetChip: View {
     }
 }
 
-// MARK: - Section Card
-private struct SectionCard<Content: View>: View {
-    let title: String
-    let content: Content
-
-    init(title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-                .foregroundColor(.secondary)
-
-            VStack(alignment: .leading, spacing: 12) {
-                content
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(AppColors.cardBackground)
-                    .shadow(color: AppColors.shadow, radius: 8, x: 0, y: 4)
-            )
-        }
-    }
-}
 
 
 #Preview {

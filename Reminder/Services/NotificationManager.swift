@@ -117,8 +117,8 @@ class NotificationManager: NSObject, ObservableObject {
 
         // Don't set badge here - let the system manage it when notification is actually delivered
 
-        // Set priority to critical for longer display and more prominence
-        content.interruptionLevel = .critical
+        // Set priority to timeSensitive for persistent display (won't auto-dismiss)
+        content.interruptionLevel = .timeSensitive
 
         // 设置通知为关键通知，确保在 Apple Watch 上也能显示
         #if os(iOS)
@@ -412,8 +412,8 @@ class NotificationManager: NSObject, ObservableObject {
             "reminderType": reminder.type.rawValue,
             "isSnooze": true
         ]
-        // 设置延迟提醒的优先级为 critical
-        content.interruptionLevel = .critical
+        // 设置延迟提醒的优先级为 timeSensitive（持续显示）
+        content.interruptionLevel = .timeSensitive
         if let iconAttachment = makeAppIconAttachment() {
             content.attachments = [iconAttachment]
         }
