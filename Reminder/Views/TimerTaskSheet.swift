@@ -140,7 +140,7 @@ struct TimerTaskSheet: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 20)
+                .padding(.bottom, 100)
                 .background(AppColors.formBackground)
             }
         }
@@ -195,8 +195,8 @@ struct TimerTaskSheet: View {
                     .shadow(color: AppColors.timer.opacity(0.35), radius: 10, x: 0, y: 5)
             }
             .buttonStyle(.plain)
-            .padding(.top, 6)
-            .padding(.bottom, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 30)
         }
     }
 

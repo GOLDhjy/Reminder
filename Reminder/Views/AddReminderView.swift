@@ -125,41 +125,50 @@ struct AddReminderView: View {
                         headerCard
 
                         if !isTodoMode {
+                            quickTemplatesSection
                             typeGridSection
-                        }
-                        titleSection
-                        notesSection
-                        if !isTodoMode {
+                            titleSection
+                            notesSection
                             repeatChipsSection
                             timeCardSection
-                            quickTemplatesSection
+                        } else {
+                            titleSection
+                            notesSection
                         }
 
-                        saveButton
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 50)
                 }
-            }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(isEditing ? "更新" : "保存") {
+                .safeAreaInset(edge: .bottom) {
+                    Button {
                         if isEditing {
                             updateReminder()
                         } else {
                             saveReminder()
                         }
+                    } label: {
+                        Text(isEditing ? "更新提醒" : "创建提醒")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(AppColors.primary)
+                            )
+                            .padding(.horizontal, 20)
+                            .shadow(color: AppColors.primary.opacity(0.35), radius: 10, x: 0, y: 5)
                     }
+                    .buttonStyle(.plain)
+                    .padding(.top, 10)
+                    .padding(.bottom, 30)
                     .disabled(title.isEmpty)
+                    .opacity(title.isEmpty ? 0.5 : 1)
                 }
             }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showingTimePicker) {
                 TimePickerView(selectedTime: $selectedTime)
             }
@@ -230,36 +239,32 @@ struct AddReminderView: View {
     private var quickTemplates: [ReminderTemplate] {
         [
             ReminderTemplate(
-                title: "喝水提醒",
-                description: "自定义间隔喝水提醒",
-                type: .water,
-                time: Date(),
-                repeatRule: .intervalMinutes(30),
-                notes: "保持水分，有益健康"
+                title: "9点吃药",
+                icon: "pills.fill",
+                type: .medicine,
+                time: Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date(),
+                repeatRule: .daily
             ),
             ReminderTemplate(
-                title: "午休提醒",
-                description: "工作日中午休息",
+                title: "22点睡觉",
+                icon: "bed.double.fill",
+                type: .sleep,
+                time: Calendar.current.date(bySettingHour: 22, minute: 30, second: 0, of: Date()) ?? Date(),
+                repeatRule: .daily
+            ),
+            ReminderTemplate(
+                title: "13点午休",
+                icon: "figure.seated.side",
                 type: .rest,
                 time: Calendar.current.date(bySettingHour: 13, minute: 0, second: 0, of: Date()) ?? Date(),
-                repeatRule: .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]),
-                notes: "适当休息，提高效率"
+                repeatRule: .weekly([.monday, .tuesday, .wednesday, .thursday, .friday])
             ),
             ReminderTemplate(
-                title: "睡觉提醒",
-                description: "每晚10点提醒",
-                type: .sleep,
-                time: Calendar.current.date(bySettingHour: 22, minute: 0, second: 0, of: Date()) ?? Date(),
-                repeatRule: .daily,
-                notes: "早睡早起，身体好"
-            ),
-            ReminderTemplate(
-                title: "吃药提醒",
-                description: "每天定时服药",
-                type: .medicine,
-                time: Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: Date()) ?? Date(),
-                repeatRule: .daily,
-                notes: "按时服药，遵医嘱（如需早晚各一次，请单独建两个提醒）"
+                title: "18点运动",
+                icon: "figure.run",
+                type: .exercise,
+                time: Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: Date()) ?? Date(),
+                repeatRule: .daily
             )
         ]
     }
@@ -267,9 +272,27 @@ struct AddReminderView: View {
     private func applyTemplate(_ template: ReminderTemplate) {
         title = template.title
         selectedType = template.type
-        selectedTime = template.time
-        selectedRepeatRule = template.repeatRule
-        notes = template.notes
+        selectedTime = template.time ?? Date()
+        selectedRepeatRule = template.repeatRule ?? .daily
+        // Set default notes based on template type
+        switch template.type {
+        case .water:
+            notes = "保持水分，有益健康"
+        case .rest:
+            notes = "适当休息，提高效率"
+        case .sleep:
+            notes = "早睡早起，身体好"
+        case .medicine:
+            notes = "按时服药，遵医嘱（如需早晚各一次，请单独建两个提醒）"
+        case .exercise:
+            notes = "坚持运动，保持健康"
+        case .cooking:
+            notes = "按时做饭，规律饮食"
+        case .meal:
+            notes = "规律饮食，有益健康"
+        default:
+            notes = ""
+        }
     }
 
     private func saveReminder() {
@@ -411,25 +434,27 @@ struct AddReminderView: View {
     }
 
     private var quickTemplatesSection: some View {
-        Section(header: Text("快速模板")) {
-            ForEach(quickTemplates, id: \.title) { template in
-                Button(action: {
-                    applyTemplate(template)
-                }) {
-                    HStack {
-                        Image(systemName: template.type.icon)
-                            .foregroundColor(colorForType(template.type))
-                        VStack(alignment: .leading) {
-                            Text(template.title)
-                                .font(.headline)
-                            Text(template.description)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
+        VStack(alignment: .leading, spacing: 12) {
+            Text("快速模板")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                ForEach(quickTemplates, id: \.title) { template in
+                    ReminderTemplateCard(
+                        title: template.title,
+                        icon: template.type.icon,
+                        color: AppColors.colorForType(template.type),
+                        isSelected: false
+                    ) {
+                        applyTemplate(template)
                     }
                 }
-                .foregroundColor(.primary)
             }
         }
     }
@@ -517,34 +542,22 @@ private extension AddReminderView {
                     .foregroundColor(.secondary)
             }
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
                 ForEach(ReminderType.allCases.filter { isTodoMode ? true : $0 != .todo }, id: \.self) { type in
-                    Button {
+                    TypeSelectionCard(
+                        title: type.rawValue,
+                        icon: type.icon,
+                        color: AppColors.colorForType(type),
+                        isSelected: selectedType == type
+                    ) {
                         selectedType = type
                         applyAutoTitleIfNeeded(for: type)
-                    } label: {
-                        HStack {
-                            Image(systemName: type.icon)
-                                .font(.headline)
-                                .foregroundColor(AppColors.colorForType(type))
-                            Text(type.rawValue)
-                                .font(.subheadline)
-                                .foregroundColor(.primary)
-                            Spacer()
-                        }
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(selectedType == type ? AppColors.colorForType(type).opacity(0.15) : AppColors.cardBackground)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(selectedType == type ? AppColors.colorForType(type) : Color.gray.opacity(0.2), lineWidth: 1)
-                        )
                     }
-                    .buttonStyle(.plain)
-                    .shadow(color: AppColors.shadow, radius: 6, x: 0, y: 3)
                 }
             }
         }
@@ -585,37 +598,39 @@ private extension AddReminderView {
 
     var repeatChipsSection: some View {
         let quickRules: [RepeatRule] = [
+            .never,
             .daily,
             RepeatRule.weekly([.monday, .tuesday, .wednesday, .thursday, .friday]),
             RepeatRule.weekly([.saturday, .sunday]),
             .monthly(1),
-            .yearly(1, 1),
-            .never
+            .yearly(1, 1)
         ]
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("提醒频率")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("常用频率 + 自定义间隔，一屏搞定")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                Text("提醒频率")
+                    .font(.headline)
+                    .foregroundColor(.primary)
                 Spacer()
                 Button {
-                    showingRepeatOptions = true
+                    useCustomInterval.toggle()
+                    if useCustomInterval {
+                        applyCustomInterval()
+                    } else if case .intervalMinutes = selectedRepeatRule {
+                        selectedRepeatRule = lastNonIntervalRule
+                    }
                 } label: {
-                    Label("更多", systemImage: "ellipsis")
-                        .labelStyle(.iconOnly)
-                        .padding(8)
+                    Text(useCustomInterval ? "取消自定义" : "自定义间隔")
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(
-                            Circle().fill(AppColors.cardBackground)
+                            Capsule().fill(useCustomInterval ? AppColors.timer.opacity(0.15) : AppColors.cardBackground)
                         )
                         .overlay(
-                            Circle().stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            Capsule().stroke(useCustomInterval ? AppColors.timer : Color.gray.opacity(0.2), lineWidth: 1)
                         )
+                        .foregroundColor(useCustomInterval ? AppColors.timer : .primary)
                 }
                 .buttonStyle(.plain)
             }
@@ -649,32 +664,21 @@ private extension AddReminderView {
                 }
             }
 
-            customIntervalCard
+            if useCustomInterval {
+                customIntervalCard
+            }
         }
     }
 
     var customIntervalCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("自定义间隔")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("适合高频任务，如喝水、伸展等")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Toggle("", isOn: $useCustomInterval)
-                    .labelsHidden()
-                    .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
-                    .onChange(of: useCustomInterval) { isOn in
-                        if isOn {
-                            applyCustomInterval()
-                        } else if case .intervalMinutes = selectedRepeatRule {
-                            selectedRepeatRule = lastNonIntervalRule
-                        }
-                    }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("自定义间隔")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                Text("适合高频任务，如喝水、伸展等")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             HStack(spacing: 10) {
@@ -688,10 +692,10 @@ private extension AddReminderView {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
                             .background(
-                                Capsule().fill(isSelected ? AppColors.primary.opacity(0.2) : AppColors.cardBackground)
+                                Capsule().fill(isSelected ? AppColors.timer.opacity(0.2) : AppColors.cardBackground)
                             )
                             .overlay(
-                                Capsule().stroke(isSelected ? AppColors.primary : Color.gray.opacity(0.2), lineWidth: 1)
+                                Capsule().stroke(isSelected ? AppColors.timer : Color.gray.opacity(0.2), lineWidth: 1)
                             )
                             .foregroundColor(.primary)
                     }
@@ -710,8 +714,7 @@ private extension AddReminderView {
                     get: { Double(customIntervalMinutes) },
                     set: { customIntervalMinutes = Int($0) }
                 ), in: 5...180, step: 5)
-                .tint(AppColors.primary)
-                .disabled(!useCustomInterval)
+                .tint(AppColors.timer)
                 .onChange(of: customIntervalMinutes) { _ in
                     if useCustomInterval {
                         applyCustomInterval()
@@ -734,15 +737,10 @@ private extension AddReminderView {
     }
 
     var timeCardSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("提醒时间")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Text("选择首次提醒时间，间隔会从这里计算")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("提醒时间")
+                .font(.headline)
+                .foregroundColor(.primary)
 
             Button {
                 showingTimePicker = true
@@ -766,7 +764,7 @@ private extension AddReminderView {
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 12) {
+            HStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("开始日期")
                         .font(.caption)
@@ -775,25 +773,18 @@ private extension AddReminderView {
                         .labelsHidden()
                 }
 
-                Divider().frame(height: 44)
+                Spacer()
 
-                Toggle("结束日期", isOn: $hasEndDate)
-                    .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
+                VStack {
+                    Toggle("结束日期", isOn: $hasEndDate)
+                        .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
 
-                if hasEndDate {
-                    DatePicker("", selection: $endDate, displayedComponents: .date)
-                        .labelsHidden()
+                    if hasEndDate {
+                        DatePicker("", selection: $endDate, displayedComponents: .date)
+                            .labelsHidden()
+                    }
                 }
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(AppColors.cardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-            )
         }
     }
 
@@ -804,9 +795,9 @@ private extension AddReminderView {
                 .foregroundColor(.primary)
 
             TextField("补充说明（可选）", text: $notes, axis: .vertical)
-                .lineLimit(3, reservesSpace: true)
+                .lineLimit(2)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 12)
+                .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
                         .fill(AppColors.cardBackground)
@@ -818,37 +809,8 @@ private extension AddReminderView {
         }
     }
 
-    var saveButton: some View {
-        Button {
-            if isEditing { updateReminder() } else { saveReminder() }
-        } label: {
-            Text(isEditing ? "保存修改" : "保存提醒")
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(AppColors.primary)
-                )
-                .shadow(color: AppColors.primary.opacity(0.35), radius: 12, x: 0, y: 6)
-        }
-        .padding(.top, 8)
-        .buttonStyle(.plain)
-        .disabled(title.isEmpty)
-        .opacity(title.isEmpty ? 0.5 : 1)
-    }
-}
+  }
 
-// MARK: - Reminder Template
-struct ReminderTemplate {
-    let title: String
-    let description: String
-    let type: ReminderType
-    let time: Date
-    let repeatRule: RepeatRule
-    let notes: String
-}
 
 // MARK: - Time Picker View
 struct TimePickerView: View {

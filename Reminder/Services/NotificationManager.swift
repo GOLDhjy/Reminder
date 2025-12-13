@@ -95,11 +95,18 @@ class NotificationManager: NSObject, ObservableObject {
         let content = UNMutableNotificationContent()
         // 在标题前添加类型相关的 emoji
         content.title = "\(reminder.type.emojiIcon) \(reminder.title)"
-        content.body = "该\(reminder.title)了"
+
+        // 计时任务使用不同的 body 文本
+        if reminder.type == .timer {
+            content.body = "计时结束了！"
+            content.categoryIdentifier = "TIMER_NOTIFICATION"
+        } else {
+            content.body = "该\(reminder.title)了"
+            content.categoryIdentifier = AppConstants.reminderNotificationCategory
+        }
 
         // Add rich notification attachments for better appearance
         content.sound = .default
-        content.categoryIdentifier = AppConstants.reminderNotificationCategory
         content.userInfo = [
             "reminderID": reminder.id.uuidString,
             "reminderType": reminder.type.rawValue
@@ -113,8 +120,13 @@ class NotificationManager: NSObject, ObservableObject {
         // Set priority to critical for longer display and more prominence
         content.interruptionLevel = .critical
 
-  
+        // 设置通知为关键通知，确保在 Apple Watch 上也能显示
+        #if os(iOS)
+        content.threadIdentifier = "reminder-\(reminder.type.rawValue)"
+        #endif
+
         // Add actions with better titles and options
+        // 为 Apple Watch 优化：使用简短文字和图标
         let completeAction = UNNotificationAction(
             identifier: AppConstants.completeActionIdentifier,
             title: "✅ 完成",
@@ -123,18 +135,39 @@ class NotificationManager: NSObject, ObservableObject {
 
         let snoozeAction = UNNotificationAction(
             identifier: AppConstants.snoozeActionIdentifier,
-            title: "⏰ 稍后提醒",
+            title: "⏰ 稍后",
             options: []
         )
 
+        // 创建支持 Apple Watch 的 category
         let category = UNNotificationCategory(
             identifier: AppConstants.reminderNotificationCategory,
             actions: [completeAction, snoozeAction],
             intentIdentifiers: [],
-            options: .customDismissAction
+            options: [.customDismissAction]
         )
 
-        notificationCenter.setNotificationCategories([category])
+        // 创建计时任务的单独 category
+        let timerCompleteAction = UNNotificationAction(
+            identifier: AppConstants.completeActionIdentifier,
+            title: "✅ 完成",
+            options: [.foreground]
+        )
+
+        let timerResetAction = UNNotificationAction(
+            identifier: "RESET_TIMER",
+            title: "🔄 重置",
+            options: []
+        )
+
+        let timerCategory = UNNotificationCategory(
+            identifier: "TIMER_NOTIFICATION",
+            actions: [timerCompleteAction, timerResetAction],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+
+        notificationCenter.setNotificationCategories([category, timerCategory])
 
         // Create trigger
         let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nextTrigger)
