@@ -46,6 +46,8 @@ struct RepeatChip: View {
                 return "周末"
             }
             return "每周"
+        case .intervalMinutes:
+            return rule.shortDescription
         default:
             return rule.displayName
         }

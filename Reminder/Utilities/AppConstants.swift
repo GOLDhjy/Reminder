@@ -16,8 +16,10 @@ struct AppConstants {
 
     // MARK: - Notification Constants
     static let reminderNotificationCategory = "REMINDER_CATEGORY"
+    static let timerNotificationCategory = "TIMER_NOTIFICATION"
     static let completeActionIdentifier = "COMPLETE_ACTION"
     static let snoozeActionIdentifier = "SNOOZE_ACTION"
+    static let resetTimerActionIdentifier = "RESET_TIMER"
 
     // MARK: - URL Scheme
     static let urlScheme = "reminder"

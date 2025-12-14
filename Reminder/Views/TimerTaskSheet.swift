@@ -186,8 +186,7 @@ struct TimerTaskSheet: View {
                 // 编辑模式：加载现有数据
                 title = reminder.title
                 notes = reminder.notes ?? ""
-                // 计算持续时间（从创建时间到触发时间）
-                durationMinutes = reminder.timeOfDay.timeIntervalSince(reminder.startDate) / 60
+                durationMinutes = timerDurationMinutes(from: reminder)
                 selectedPreset = nil  // 编辑模式下不选择预设
             }
         }
@@ -210,7 +209,7 @@ struct TimerTaskSheet: View {
                     .foregroundColor(.primary)
             }
 
-            Text("计时任务是指定时间后提醒你，适合做饭、泡面、运动间隔等场景。一次性的计时提醒，完成后自动结束。")
+            Text("计时任务是指定时间后提醒你，适合做饭、泡面、运动间隔等场景。每次计时结束后会进入“已完成”，可在列表中重新开启。")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
@@ -226,8 +225,10 @@ struct TimerTaskSheet: View {
     }
 
     private func createTimerReminder() {
-        let dueDate = normalizedDueDate(minutesFromNow: durationMinutes)
+        let startDate = Date()
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let durationSeconds = max(1, durationMinutes * 60)
+        let dueDate = startDate.addingTimeInterval(durationSeconds)
 
         let reminder = Reminder(
             title: cleanTitle.isEmpty ? "计时任务" : cleanTitle,
@@ -237,8 +238,9 @@ struct TimerTaskSheet: View {
             notes: notes.isEmpty ? nil : notes
         )
 
-        // Ensure it's a one-off timer
-        reminder.startDate = dueDate
+        reminder.timerDuration = durationSeconds
+        reminder.timerPausedRemaining = nil
+        reminder.startDate = startDate
         reminder.endDate = dueDate
         reminder.excludeHolidays = false
         reminder.isActive = true
@@ -261,23 +263,23 @@ struct TimerTaskSheet: View {
     private func updateTimerReminder() {
         guard let reminder = reminder else { return }
 
-        let dueDate = normalizedDueDate(minutesFromNow: durationMinutes)
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let durationSeconds = max(1, durationMinutes * 60)
 
         // 更新提醒
         reminder.title = cleanTitle.isEmpty ? "计时任务" : cleanTitle
         reminder.notes = notes.isEmpty ? nil : notes
-        reminder.timeOfDay = dueDate
-        reminder.startDate = Date() // 从现在开始计时
-        reminder.endDate = dueDate
+        reminder.timerDuration = durationSeconds
         reminder.updatedAt = Date()
 
-        // 如果提醒是活跃的，重新调度通知
         if reminder.isActive {
+            reminder.restartTimer()
             Task {
                 NotificationManager.shared.cancelNotification(for: reminder)
                 try? await NotificationManager.shared.scheduleNotification(for: reminder)
             }
+        } else if reminder.timerPausedRemaining != nil {
+            reminder.timerPausedRemaining = min(reminder.timerPausedRemaining ?? durationSeconds, durationSeconds)
         }
 
         do {
@@ -288,10 +290,12 @@ struct TimerTaskSheet: View {
         }
     }
 
-    private func normalizedDueDate(minutesFromNow: Double) -> Date {
-        let calendar = Calendar.current
-        let rawDate = Date().addingTimeInterval(minutesFromNow * 60)
-        return calendar.date(bySetting: .second, value: 0, of: rawDate) ?? rawDate
+    private func timerDurationMinutes(from reminder: Reminder) -> Double {
+        let seconds = reminder.timerDurationSeconds
+        if seconds > 0 {
+            return max(1, seconds / 60)
+        }
+        return 10
     }
 }
 

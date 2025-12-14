@@ -225,6 +225,7 @@ struct ReminderDetailView: View {
     private func deleteReminder() {
         NotificationManager.shared.cancelNotification(for: reminder)
         modelContext.delete(reminder)
+        try? modelContext.save()
         dismiss()
     }
 
@@ -329,6 +330,20 @@ struct EditReminderView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    private var intervalMinutesBinding: Binding<Int> {
+        Binding(
+            get: {
+                if case .intervalMinutes(let minutes) = reminder.repeatRule {
+                    return max(1, minutes)
+                }
+                return 30
+            },
+            set: { newValue in
+                reminder.repeatRule = .intervalMinutes(max(1, newValue))
+            }
+        )
+    }
+
     var body: some View {
         NavigationView {
             Form {
@@ -385,11 +400,17 @@ struct EditReminderView: View {
                     Picker("重复规则", selection: $reminder.repeatRule) {
                         Text("不重复").tag(RepeatRule.never)
                         Text("每天").tag(RepeatRule.daily)
-                        Text("每30分钟").tag(RepeatRule.intervalMinutes(30))
+                        Text("自定义间隔").tag(RepeatRule.intervalMinutes(30))
                         Text("工作日").tag(RepeatRule.weekly([.monday, .tuesday, .wednesday, .thursday, .friday]))
                         Text("周末").tag(RepeatRule.weekly([.saturday, .sunday]))
                         Text("每月1日").tag(RepeatRule.monthly(1))
                         Text("每年1月1日").tag(RepeatRule.yearly(1, 1))
+                    }
+
+                    if case .intervalMinutes = reminder.repeatRule {
+                        Stepper(value: intervalMinutesBinding, in: 1...720) {
+                            Text("间隔：\(intervalMinutesBinding.wrappedValue) 分钟")
+                        }
                     }
 
                     Toggle("排除节假日", isOn: $reminder.excludeHolidays)

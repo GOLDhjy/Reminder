@@ -9,8 +9,8 @@ struct TodoReminderView: View {
 
     @State private var title = ""
     @State private var notes = ""
-    @State private var selectedType: ReminderType = .custom
     @State private var userEditedTitle = false
+    @State private var selectedTemplateTitle: String?
 
     private var isEditing: Bool {
         reminder != nil
@@ -22,22 +22,22 @@ struct TodoReminderView: View {
             ReminderTemplate(
                 title: "买菜",
                 icon: "cart.fill",
-                type: .custom
+                type: .todo
             ),
             ReminderTemplate(
                 title: "交水电费",
                 icon: "doc.text.fill",
-                type: .custom
+                type: .todo
             ),
             ReminderTemplate(
                 title: "打扫房间",
                 icon: "broom.fill",
-                type: .custom
+                type: .todo
             ),
             ReminderTemplate(
                 title: "取快递",
                 icon: "box.truck.fill",
-                type: .custom
+                type: .todo
             )
         ]
     }
@@ -51,9 +51,6 @@ struct TodoReminderView: View {
 
                     // 快速模板
                     quickTemplatesSection
-
-                    // 类型选择
-                    typeGridSection
 
                     // 标题
                     titleSection
@@ -107,8 +104,8 @@ struct TodoReminderView: View {
             if let reminder = reminder {
                 title = reminder.title
                 notes = reminder.notes ?? ""
-                selectedType = reminder.type
                 userEditedTitle = true
+                selectedTemplateTitle = quickTemplates.first(where: { $0.title == reminder.title })?.title
             }
         }
     }
@@ -150,28 +147,11 @@ struct TodoReminderView: View {
                         title: template.title,
                         icon: template.icon,
                         color: AppColors.todo,
-                        isSelected: false
+                        isSelected: selectedTemplateTitle == template.title
                     ) {
+                        selectedTemplateTitle = template.title
                         title = template.title
                         userEditedTitle = true
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var typeGridSection: some View {
-        SectionCard(title: "分类标签") {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                ForEach([ReminderType.custom], id: \.self) { type in
-                    TypeSelectionCard(
-                        title: type.rawValue,
-                        icon: type.icon,
-                        color: AppColors.colorForType(type),
-                        isSelected: selectedType == type
-                    ) {
-                        selectedType = type
                     }
                 }
             }
@@ -205,7 +185,7 @@ struct TodoReminderView: View {
     private func saveTodo() {
         let newReminder = Reminder(
             title: title.isEmpty ? "待办事项" : title,
-            type: selectedType,
+            type: .todo,
             timeOfDay: Date(),
             repeatRule: .never,
             notes: notes.isEmpty ? nil : notes
@@ -223,7 +203,7 @@ struct TodoReminderView: View {
 
         reminder.title = title
         reminder.notes = notes.isEmpty ? nil : notes
-        reminder.type = selectedType
+        reminder.type = .todo
         reminder.updatedAt = Date()
 
         try? modelContext.save()

@@ -64,9 +64,16 @@ struct TimeReminderView: View {
         ]
     }
 
-    // 快速频率选项
+    // 快速频率选项（按天/周/月/年）
     private var quickRules: [RepeatRule] {
-        [.never, .daily, .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]), .weekly([.saturday, .sunday]), .monthly(1), .yearly(1, 1)]
+        [
+            .never,
+            .daily,
+            .weekly([.monday, .tuesday, .wednesday, .thursday, .friday]),
+            .weekly([.saturday, .sunday]),
+            .monthly(1),
+            .yearly(1, 1)
+        ]
     }
 
     var body: some View {
@@ -271,6 +278,37 @@ struct TimeReminderView: View {
                 }
                 .padding(.horizontal, 16)
             }
+
+            SectionCard(title: "自定义间隔（分钟）") {
+                Toggle("启用自定义分钟重复", isOn: $useCustomInterval)
+                    .font(.subheadline)
+
+                if useCustomInterval {
+                    Stepper(value: $customIntervalMinutes, in: 1...720) {
+                        Text("每隔 \(customIntervalMinutes) 分钟")
+                            .font(.subheadline)
+                            .foregroundColor(AppColors.primary)
+                    }
+                    .onChange(of: customIntervalMinutes) {
+                        guard useCustomInterval else { return }
+                        selectedRepeatRule = .intervalMinutes(max(1, customIntervalMinutes))
+                    }
+                }
+            }
+            .onChange(of: useCustomInterval) {
+                if useCustomInterval {
+                    if case .intervalMinutes = selectedRepeatRule {
+                        selectedRepeatRule = .intervalMinutes(max(1, customIntervalMinutes))
+                    } else {
+                        lastNonIntervalRule = selectedRepeatRule
+                        selectedRepeatRule = .intervalMinutes(max(1, customIntervalMinutes))
+                    }
+                } else {
+                    if case .intervalMinutes = selectedRepeatRule {
+                        selectedRepeatRule = lastNonIntervalRule
+                    }
+                }
+            }
         }
     }
 
@@ -279,7 +317,7 @@ struct TimeReminderView: View {
         SectionCard(title: "提醒时间") {
             VStack(spacing: 12) {
                 HStack {
-                    Text("每日提醒时间")
+                    Text(useCustomInterval ? "开始时间" : "每日提醒时间")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
@@ -326,22 +364,18 @@ struct TimeReminderView: View {
     }
 
     private func handleRuleSelection(_ rule: RepeatRule) {
-        if case .intervalMinutes = rule {
-            useCustomInterval = true
-            selectedRepeatRule = rule
-        } else {
-            useCustomInterval = false
-            lastNonIntervalRule = rule
-            selectedRepeatRule = rule
-        }
+        lastNonIntervalRule = rule
+        selectedRepeatRule = rule
     }
 
     private func syncCustomIntervalFromRule() {
-        if case .intervalMinutes = selectedRepeatRule {
-            // intervalMinutes is valid
-        } else {
-            useCustomInterval = false
+        if case .intervalMinutes(let minutes) = selectedRepeatRule {
+            useCustomInterval = true
+            customIntervalMinutes = max(1, minutes)
+            return
         }
+        useCustomInterval = false
+        lastNonIntervalRule = selectedRepeatRule
     }
 
     private func saveReminder() {

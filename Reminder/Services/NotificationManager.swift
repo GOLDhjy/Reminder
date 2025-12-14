@@ -5,6 +5,20 @@ import SwiftData
 import UIKit
 #endif
 
+struct InAppBanner: Identifiable, Equatable {
+    enum Kind: String, Equatable {
+        case reminder
+        case timer
+    }
+
+    let id: UUID = UUID()
+    let title: String
+    let message: String
+    let kind: Kind
+    let reminderID: UUID?
+    let createdAt: Date = Date()
+}
+
 @MainActor
 class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
@@ -14,6 +28,7 @@ class NotificationManager: NSObject, ObservableObject {
 
     @Published var isAuthorized = false
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published var inAppBanner: InAppBanner?
 
     private override init() {
         super.init()
@@ -21,6 +36,23 @@ class NotificationManager: NSObject, ObservableObject {
         Task {
             await checkAuthorizationStatus()
         }
+    }
+
+    func presentInAppBanner(title: String, message: String, kind: InAppBanner.Kind, reminderID: UUID? = nil) {
+        inAppBanner = InAppBanner(title: title, message: message, kind: kind, reminderID: reminderID)
+        playHaptic(for: kind)
+    }
+
+    func dismissInAppBanner() {
+        inAppBanner = nil
+    }
+
+    private func playHaptic(for kind: InAppBanner.Kind) {
+        #if os(iOS)
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(kind == .timer ? .warning : .success)
+        #endif
     }
 
     // Set model context after initialization
@@ -99,7 +131,7 @@ class NotificationManager: NSObject, ObservableObject {
         // 计时任务使用不同的 body 文本
         if reminder.type == .timer {
             content.body = "计时结束了！"
-            content.categoryIdentifier = "TIMER_NOTIFICATION"
+            content.categoryIdentifier = AppConstants.timerNotificationCategory
         } else {
             content.body = "该\(reminder.title)了"
             content.categoryIdentifier = AppConstants.reminderNotificationCategory
@@ -155,13 +187,13 @@ class NotificationManager: NSObject, ObservableObject {
         )
 
         let timerResetAction = UNNotificationAction(
-            identifier: "RESET_TIMER",
+            identifier: AppConstants.resetTimerActionIdentifier,
             title: "🔄 重置",
             options: []
         )
 
         let timerCategory = UNNotificationCategory(
-            identifier: "TIMER_NOTIFICATION",
+            identifier: AppConstants.timerNotificationCategory,
             actions: [timerCompleteAction, timerResetAction],
             intentIdentifiers: [],
             options: [.customDismissAction]
@@ -170,8 +202,16 @@ class NotificationManager: NSObject, ObservableObject {
         notificationCenter.setNotificationCategories([category, timerCategory])
 
         // Create trigger
-        let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nextTrigger)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+        let trigger: UNNotificationTrigger
+        if reminder.type == .timer {
+            trigger = UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, nextTrigger.timeIntervalSinceNow),
+                repeats: false
+            )
+        } else {
+            let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: nextTrigger)
+            trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+        }
 
         // Create request
         let notificationID = reminder.id.uuidString
@@ -251,6 +291,8 @@ class NotificationManager: NSObject, ObservableObject {
         switch response.actionIdentifier {
         case AppConstants.completeActionIdentifier:
             log = ReminderLog(action: .completed, notes: "用户点击了已完成")
+        case AppConstants.resetTimerActionIdentifier:
+            log = ReminderLog(action: .acknowledged, notes: "用户重置了计时任务")
         case AppConstants.snoozeActionIdentifier:
             log = ReminderLog(action: .snoozed, notes: "用户延迟了5分钟")
             // Schedule snooze notification
@@ -269,6 +311,14 @@ class NotificationManager: NSObject, ObservableObject {
         // Update reminder
         reminder.lastTriggered = Date()
         reminder.updatedAt = Date()
+
+        if reminder.type == .timer, response.actionIdentifier == AppConstants.resetTimerActionIdentifier {
+            reminder.restartTimer()
+            try? await scheduleNotification(for: reminder)
+            try? modelContext.save()
+            await clearBadge()
+            return
+        }
 
         // If non-repeating, mark inactive after first trigger
         if case .never = reminder.repeatRule {
@@ -513,6 +563,36 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+
+        let content = notification.request.content
+        let kind: InAppBanner.Kind = content.categoryIdentifier == AppConstants.timerNotificationCategory ? .timer : .reminder
+
+        let reminderUUID: UUID? = {
+            guard let reminderID = content.userInfo["reminderID"] as? String else { return nil }
+            return UUID(uuidString: reminderID)
+        }()
+
+        presentInAppBanner(
+            title: content.title,
+            message: content.body,
+            kind: kind,
+            reminderID: reminderUUID
+        )
+
+        guard let reminderUUID, let modelContext else { return }
+        let descriptor = FetchDescriptor<Reminder>(
+            predicate: #Predicate<Reminder> { $0.id == reminderUUID }
+        )
+        guard let reminder = try? modelContext.fetch(descriptor).first else { return }
+
+        if case .never = reminder.repeatRule {
+            reminder.isActive = false
+            reminder.timerPausedRemaining = nil
+            reminder.notificationID = nil
+            reminder.lastTriggered = Date()
+            reminder.updatedAt = Date()
+            try? modelContext.save()
+        }
     }
 
     func userNotificationCenter(

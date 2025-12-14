@@ -17,6 +17,8 @@ final class Reminder {
     var endDate: Date?
     var repeatRule: RepeatRule
     var excludeHolidays: Bool
+    var timerDuration: Double?
+    var timerPausedRemaining: Double?
 
     // Notification properties
     var notificationID: String?
@@ -44,11 +46,22 @@ final class Reminder {
 
     // Computed property for next trigger date
     var nextTriggerDate: Date? {
+        let now = Date()
+
+        // Timer tasks are countdown-based and use an absolute end date.
+        if type == .timer {
+            guard isActive else { return nil }
+            if let endDate {
+                return endDate > now ? endDate : nil
+            }
+            return timeOfDay > now ? timeOfDay : nil
+        }
+
         let calculator = RepeatRuleCalculator()
 
         // For new reminders that haven't been triggered, check from current time
         // For existing reminders, check from last triggered or now
-        let fromDate = Date()
+        let fromDate = now
 
         return calculator.nextTriggerDate(
             from: fromDate,
@@ -290,5 +303,88 @@ enum Weekday: Int, CaseIterable, Codable, Identifiable, Hashable {
         case .friday: return "五"
         case .saturday: return "六"
         }
+    }
+}
+
+// MARK: - Timer Task Helpers
+extension Reminder {
+    var timerDurationSeconds: TimeInterval {
+        guard type == .timer else { return 0 }
+
+        if let timerDuration, timerDuration > 0 {
+            return timerDuration
+        }
+
+        if let endDate, endDate > startDate {
+            return endDate.timeIntervalSince(startDate)
+        }
+
+        let derived = timeOfDay.timeIntervalSince(createdAt)
+        if derived > 0 {
+            return derived
+        }
+
+        return 10 * 60
+    }
+
+    var isTimerPaused: Bool {
+        type == .timer && !isActive && timerPausedRemaining != nil
+    }
+
+    var isTimerCompleted: Bool {
+        type == .timer && !isActive && timerPausedRemaining == nil
+    }
+
+    func pauseTimer(at date: Date = Date()) {
+        guard type == .timer, isActive else { return }
+        if timerDuration == nil {
+            timerDuration = timerDurationSeconds
+        }
+
+        let referenceEnd = endDate ?? timeOfDay
+        timerPausedRemaining = max(0, referenceEnd.timeIntervalSince(date))
+        isActive = false
+        updatedAt = date
+    }
+
+    func resumeTimer(from date: Date = Date()) {
+        guard type == .timer, !isActive, let remaining = timerPausedRemaining else { return }
+        if timerDuration == nil {
+            timerDuration = timerDurationSeconds
+        }
+
+        startDate = date
+        let dueDate = date.addingTimeInterval(max(1, remaining))
+        endDate = dueDate
+        timeOfDay = dueDate
+        timerPausedRemaining = nil
+        isActive = true
+        updatedAt = date
+    }
+
+    func finishTimer(at date: Date = Date()) {
+        guard type == .timer else { return }
+        if timerDuration == nil {
+            timerDuration = timerDurationSeconds
+        }
+
+        timerPausedRemaining = nil
+        isActive = false
+        updatedAt = date
+    }
+
+    func restartTimer(from startDate: Date = Date()) {
+        guard type == .timer else { return }
+        if timerDuration == nil {
+            timerDuration = timerDurationSeconds
+        }
+
+        let dueDate = startDate.addingTimeInterval(timerDurationSeconds)
+        self.startDate = startDate
+        endDate = dueDate
+        timeOfDay = dueDate
+        timerPausedRemaining = nil
+        isActive = true
+        updatedAt = startDate
     }
 }

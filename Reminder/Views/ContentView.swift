@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import Combine
 
 extension Optional {
     var isNil: Bool {
@@ -16,6 +17,7 @@ extension Optional {
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var notificationManager: NotificationManager
     @Query(sort: \Reminder.createdAt, order: .reverse) private var reminders: [Reminder]
     @State private var showingAddReminder = false
     @State private var showingAddTodo = false
@@ -26,15 +28,30 @@ struct ContentView: View {
     @State private var timerEditReminder: Reminder?
     @State private var showingTimerSheet = false
     @State private var showingCreateOptions = false
+    @State private var isQuickEditMode = false
 
     private let useCustomList = true
+    private let cleanupTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         wrapWithSheets(rootView)
+            .overlay(alignment: .top) {
+                if let banner = notificationManager.inAppBanner {
+                    InAppBannerView(banner: banner) {
+                        notificationManager.dismissInAppBanner()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(1)
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: notificationManager.inAppBanner?.id)
             .task {
                 cleanupExpiredOneTimeReminders()
             }
-            .onChange(of: reminders) { _ in
+            .onChange(of: reminders) {
+                cleanupExpiredOneTimeReminders()
+            }
+            .onReceive(cleanupTicker) { _ in
                 cleanupExpiredOneTimeReminders()
             }
       }
@@ -51,13 +68,7 @@ struct ContentView: View {
     private var rootView: some View {
 #if os(iOS)
         NavigationStack {
-            Group {
-                if useCustomList {
-                    listContent
-                } else {
-                    splitView
-                }
-            }
+            listContent
             .navigationTitle(AppConstants.appName)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -123,6 +134,12 @@ struct ContentView: View {
 
     private var trailingMenuiOS: some View {
         Menu {
+            Button {
+                isQuickEditMode.toggle()
+            } label: {
+                Label(isQuickEditMode ? "退出编辑模式" : "编辑模式", systemImage: isQuickEditMode ? "checkmark.circle" : "pencil")
+            }
+
             Button(action: { showingSettings = true }) {
                 Label("设置", systemImage: "gear")
             }
@@ -239,130 +256,11 @@ struct ContentView: View {
 
     private var legacyListContent: some View {
         List {
-            // Filter Section
-            if !selectedType.isNil {
-                Section(header: Text("筛选：\(selectedType?.rawValue ?? "全部")")) {
-                    Button("清除筛选") {
-                        selectedType = nil
-                    }
-                    .foregroundColor(AppColors.primary)
-                }
-            }
-
-            // TODO 事项（进行中）
-            if !activeTodoReminders.isEmpty {
-                Section {
-                    ForEach(activeTodoReminders) { reminder in
-                        ReminderRow(
-                            reminder: reminder,
-                            onTap: { todoEditReminder = reminder },
-                            onToggle: {
-                                modelContext.delete(reminder)
-                                try? modelContext.save()
-                            }
-                        )
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button("删除", role: .destructive) {
-                                deleteReminder(reminder)
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button("完成") {
-                                modelContext.delete(reminder)
-                                try? modelContext.save()
-                            }
-                            .tint(AppColors.todo)
-                        }
-                    }
-                } header: {
-                    SectionHeaderRow(
-                        icon: "checkmark.circle.fill",
-                        title: "待办事项",
-                        count: activeTodoReminders.count,
-                        tint: AppColors.todo
-                    )
-                }
-            }
-
-            
-            // Active Reminders with better spacing
-            if !activeTimedReminders.isEmpty {
-                Section {
-                    ForEach(activeTimedReminders) { reminder in
-                        ReminderRow(
-                            reminder: reminder,
-                            onTap: { editReminder(reminder) },
-                            onToggle: { toggleReminder(reminder) }
-                        )
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button("删除", role: .destructive) {
-                                deleteReminder(reminder)
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button(reminder.isActive ? "暂停" : "启用") {
-                                toggleReminder(reminder)
-                            }
-                            .tint(reminder.isActive ? .orange : .green)
-                        }
-                    }
-                } header: {
-                    SectionHeaderRow(
-                        icon: "bell.fill",
-                        title: "进行中的提醒",
-                        count: activeTimedReminders.count,
-                        tint: AppColors.primary
-                    )
-                }
-            }
-
-            // 已暂停/完成的提醒
-            if !inactiveTimedReminders.isEmpty {
-                Section {
-                    ForEach(inactiveTimedReminders) { reminder in
-                        ReminderRow(
-                            reminder: reminder,
-                            onTap: { editReminder(reminder) },
-                            onToggle: { toggleReminder(reminder) }
-                        )
-                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .opacity(0.7)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button("删除", role: .destructive) {
-                                deleteReminder(reminder)
-                            }
-                        }
-                        .swipeActions(edge: .leading) {
-                            Button(reminder.isActive ? "暂停" : "启用") {
-                                toggleReminder(reminder)
-                            }
-                            .tint(reminder.isActive ? .orange : .green)
-                        }
-                    }
-                } header: {
-                    SectionHeaderRow(
-                        icon: "pause.circle.fill",
-                        title: "已暂停/完成",
-                        count: inactiveTimedReminders.count,
-                        tint: AppColors.custom
-                    )
-                }
-            }
-
-            // Empty state section
-            if reminders.isEmpty {
-                Section {
-                    emptyStateCard
-                }
-                .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            }
+            legacyFilterSection
+            legacyTodoSection
+            legacyActiveRemindersSection
+            legacyInactiveRemindersSection
+            legacyEmptyStateSection
         }
 #if os(iOS)
         .listStyle(.plain)
@@ -375,6 +273,146 @@ struct ContentView: View {
 
         // Add bottom padding to avoid button overlap
         .padding(.bottom, 100)
+    }
+
+    @ViewBuilder
+    private var legacyFilterSection: some View {
+        if !selectedType.isNil {
+            Section(header: Text("筛选：\(selectedType?.rawValue ?? "全部")")) {
+                Button("清除筛选") {
+                    selectedType = nil
+                }
+                .foregroundColor(AppColors.primary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var legacyTodoSection: some View {
+        if !activeTodoReminders.isEmpty {
+            Section {
+                ForEach(activeTodoReminders) { reminder in
+                    ReminderRow(
+                        reminder: reminder,
+                        onTap: { todoEditReminder = reminder },
+                        onToggle: { deleteReminder(reminder) },
+                        isQuickEditMode: isQuickEditMode,
+                        onDelete: { deleteReminder(reminder) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button("删除", role: .destructive) {
+                            deleteReminder(reminder)
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button("完成") {
+                            deleteReminder(reminder)
+                        }
+                        .tint(AppColors.todo)
+                    }
+                }
+            } header: {
+                SectionHeaderRow(
+                    icon: "checkmark.circle.fill",
+                    title: "待办事项",
+                    count: activeTodoReminders.count,
+                    tint: AppColors.todo
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var legacyActiveRemindersSection: some View {
+        if !activeTimedReminders.isEmpty {
+            Section {
+                ForEach(activeTimedReminders) { reminder in
+                    let secondaryAction: (() -> Void)? = reminder.type == .timer ? { finishTimerTask(reminder) } : nil
+                    ReminderRow(
+                        reminder: reminder,
+                        onTap: { editReminder(reminder) },
+                        onToggle: { toggleReminder(reminder) },
+                        onSecondaryAction: secondaryAction,
+                        isQuickEditMode: isQuickEditMode,
+                        onDelete: { deleteReminder(reminder) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button("删除", role: .destructive) {
+                            deleteReminder(reminder)
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button(reminder.type == .timer ? timerPrimaryActionTitle(for: reminder) : (reminder.isActive ? "暂停" : "启用")) {
+                            toggleReminder(reminder)
+                        }
+                        .tint(reminder.isActive ? .orange : .green)
+                    }
+                }
+            } header: {
+                SectionHeaderRow(
+                    icon: "bell.fill",
+                    title: "进行中的提醒",
+                    count: activeTimedReminders.count,
+                    tint: AppColors.primary
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var legacyInactiveRemindersSection: some View {
+        if !inactiveTimedReminders.isEmpty {
+            Section {
+                ForEach(inactiveTimedReminders) { reminder in
+                    let secondaryAction: (() -> Void)? = reminder.type == .timer ? { finishTimerTask(reminder) } : nil
+                    ReminderRow(
+                        reminder: reminder,
+                        onTap: { editReminder(reminder) },
+                        onToggle: { toggleReminder(reminder) },
+                        onSecondaryAction: secondaryAction,
+                        isQuickEditMode: isQuickEditMode,
+                        onDelete: { deleteReminder(reminder) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .opacity(0.7)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button("删除", role: .destructive) {
+                            deleteReminder(reminder)
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button(reminder.type == .timer ? timerPrimaryActionTitle(for: reminder) : (reminder.isActive ? "暂停" : "启用")) {
+                            toggleReminder(reminder)
+                        }
+                        .tint(reminder.isActive ? .orange : .green)
+                    }
+                }
+            } header: {
+                SectionHeaderRow(
+                    icon: "pause.circle.fill",
+                    title: "已暂停/完成",
+                    count: inactiveTimedReminders.count,
+                    tint: AppColors.custom
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var legacyEmptyStateSection: some View {
+        if reminders.isEmpty {
+            Section {
+                emptyStateCard
+            }
+            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 12, trailing: 0))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
     }
 
     private var customListContent: some View {
@@ -449,56 +487,78 @@ struct ContentView: View {
 
             VStack(spacing: 8) {
                 ForEach(reminders) { reminder in
-                    ReminderRow(
-                        reminder: reminder,
-                        onTap: {
-                            if reminder.type == .todo {
-                                todoEditReminder = reminder
-                            } else if reminder.type == .timer {
-                                timerEditReminder = reminder
-                            } else {
-                                editReminder(reminder)
-                            }
-                        },
-                        onToggle: {
-                            if reminder.type == .todo {
-                                modelContext.delete(reminder)
-                                try? modelContext.save()
-                            } else {
-                                toggleReminder(reminder)
-                            }
-                        }
-                    )
-                    .contextMenu {
-                        if reminder.type == .todo {
-                            Button("编辑") {
-                                todoEditReminder = reminder
-                            }
-                            Button("完成") {
-                                modelContext.delete(reminder)
-                                try? modelContext.save()
-                            }
-                        } else if reminder.type == .timer {
-                            Button(reminder.isActive ? "暂停" : "启用") {
-                                toggleReminder(reminder)
-                            }
-                            Button("编辑计时") {
-                                timerEditReminder = reminder
-                            }
-                        } else {
-                            Button(reminder.isActive ? "暂停" : "启用") {
-                                toggleReminder(reminder)
-                            }
-                            Button("编辑") {
-                                editReminder(reminder)
-                            }
-                        }
-                        Button("删除", role: .destructive) {
-                            deleteReminder(reminder)
-                        }
-                    }
+                    sectionRowView(for: reminder)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func sectionRowView(for reminder: Reminder) -> some View {
+        let secondaryAction: (() -> Void)? = reminder.type == .timer ? { finishTimerTask(reminder) } : nil
+
+        ReminderRow(
+            reminder: reminder,
+            onTap: { handleSectionTap(reminder) },
+            onToggle: { handleSectionToggle(reminder) },
+            onSecondaryAction: secondaryAction,
+            isQuickEditMode: isQuickEditMode,
+            onDelete: { deleteReminder(reminder) }
+        )
+        .contextMenu {
+            sectionContextMenu(for: reminder)
+        }
+    }
+
+    private func handleSectionTap(_ reminder: Reminder) {
+        if reminder.type == .todo {
+            todoEditReminder = reminder
+        } else if reminder.type == .timer {
+            timerEditReminder = reminder
+        } else {
+            editReminder(reminder)
+        }
+    }
+
+    private func handleSectionToggle(_ reminder: Reminder) {
+        if reminder.type == .todo {
+            deleteReminder(reminder)
+        } else {
+            toggleReminder(reminder)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionContextMenu(for reminder: Reminder) -> some View {
+        if reminder.type == .todo {
+            Button("编辑") {
+                todoEditReminder = reminder
+            }
+            Button("完成") {
+                deleteReminder(reminder)
+            }
+        } else if reminder.type == .timer {
+            Button(timerPrimaryActionTitle(for: reminder)) {
+                toggleReminder(reminder)
+            }
+            if reminder.isActive || reminder.timerPausedRemaining != nil {
+                Button("结束") {
+                    finishTimerTask(reminder)
+                }
+            }
+            Button("编辑计时") {
+                timerEditReminder = reminder
+            }
+        } else {
+            Button(reminder.isActive ? "暂停" : "启用") {
+                toggleReminder(reminder)
+            }
+            Button("编辑") {
+                editReminder(reminder)
+            }
+        }
+        Button("删除", role: .destructive) {
+            deleteReminder(reminder)
         }
     }
 
@@ -622,6 +682,18 @@ struct ContentView: View {
             return
         }
 
+        if reminder.type == .timer {
+            if reminder.isActive {
+                reminder.pauseTimer()
+            } else if reminder.timerPausedRemaining != nil {
+                reminder.resumeTimer()
+            } else {
+                reminder.restartTimer()
+            }
+            saveAndSchedule(reminder: reminder)
+            return
+        }
+
         let willActivate = !reminder.isActive
         reminder.isActive.toggle()
         reminder.updatedAt = Date()
@@ -632,6 +704,21 @@ struct ContentView: View {
         }
 
         saveAndSchedule(reminder: reminder)
+    }
+
+    private func finishTimerTask(_ reminder: Reminder) {
+        reminder.finishTimer()
+        saveAndSchedule(reminder: reminder)
+    }
+
+    private func timerPrimaryActionTitle(for reminder: Reminder) -> String {
+        if reminder.isActive {
+            return "暂停"
+        }
+        if reminder.timerPausedRemaining != nil {
+            return "继续"
+        }
+        return "重新开始"
     }
 
     private func normalizeOneTimeReminder(_ reminder: Reminder) {
@@ -666,8 +753,20 @@ struct ContentView: View {
 
         guard !expired.isEmpty else { return }
 
+        if let firstTimer = expired.first(where: { $0.type == .timer }) {
+            notificationManager.presentInAppBanner(
+                title: firstTimer.title,
+                message: "计时结束了！",
+                kind: .timer,
+                reminderID: firstTimer.id
+            )
+        }
+
         for reminder in expired {
             reminder.isActive = false
+            if reminder.type == .timer {
+                reminder.timerPausedRemaining = nil
+            }
             reminder.notificationID = nil
             reminder.updatedAt = Date()
         }
@@ -681,6 +780,7 @@ struct ContentView: View {
 
         // Delete from database
         modelContext.delete(reminder)
+        try? modelContext.save()
     }
 
     private func editReminder(_ reminder: Reminder) {
@@ -731,7 +831,7 @@ struct SimpleTodoRow: View {
             Spacer()
 
             Button(action: onComplete) {
-                Image(systemName: "circle")
+                Image(systemName: "square")
                     .foregroundColor(AppColors.todo)
                     .font(.title2)
             }
@@ -746,6 +846,25 @@ struct ReminderRow: View {
     let reminder: Reminder
     let onTap: () -> Void
     let onToggle: () -> Void
+    let onSecondaryAction: (() -> Void)?
+    let isQuickEditMode: Bool
+    let onDelete: (() -> Void)?
+
+    init(
+        reminder: Reminder,
+        onTap: @escaping () -> Void,
+        onToggle: @escaping () -> Void,
+        onSecondaryAction: (() -> Void)? = nil,
+        isQuickEditMode: Bool = false,
+        onDelete: (() -> Void)? = nil
+    ) {
+        self.reminder = reminder
+        self.onTap = onTap
+        self.onToggle = onToggle
+        self.onSecondaryAction = onSecondaryAction
+        self.isQuickEditMode = isQuickEditMode
+        self.onDelete = onDelete
+    }
 
     // 计算距离下次提醒的剩余时间
     private func timeUntil(_ date: Date) -> String {
@@ -764,6 +883,61 @@ struct ReminderRow: View {
             return "\(hours)小时\(minutes)分后"
         }
         return "\(minutes)分钟后"
+    }
+
+    private func formattedTimerDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(1, Int((seconds / 60).rounded()))
+        if totalMinutes < 60 {
+            return "\(totalMinutes)分钟"
+        }
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        if minutes == 0 {
+            return "\(hours)小时"
+        }
+        return "\(hours)小时\(minutes)分钟"
+    }
+
+    private func formattedCountdown(_ seconds: TimeInterval) -> String {
+        let clamped = max(0, Int(seconds))
+        let hours = clamped / 3600
+        let minutes = (clamped % 3600) / 60
+        let secs = clamped % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%02d:%02d", minutes, secs)
+    }
+
+    @ViewBuilder
+    private func timerBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.monospacedDigit())
+            .foregroundColor(AppColors.timer)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(AppColors.timer.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var timerStatusBadge: some View {
+        if reminder.timerPausedRemaining != nil, let remaining = reminder.timerPausedRemaining {
+            timerBadge("暂停 \(formattedCountdown(remaining))")
+        } else if reminder.isActive {
+            let target = reminder.endDate ?? reminder.timeOfDay
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let remaining = target.timeIntervalSince(context.date)
+                if remaining > 0 {
+                    timerBadge(formattedCountdown(remaining))
+                } else {
+                    timerBadge("已完成")
+                }
+            }
+        } else {
+            timerBadge("已完成")
+        }
     }
 
     private var toggleBinding: Binding<Bool> {
@@ -819,30 +993,51 @@ struct ReminderRow: View {
                             .background(AppColors.todo.opacity(0.12))
                             .clipShape(Capsule())
                     } else {
-                        // 原有的计时提醒显示逻辑
-                        HStack(spacing: 8) {
-                            Image(systemName: "repeat")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(reminder.repeatRule.description)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text("·")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(reminder.timeOfDay, style: .time)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
+                        if reminder.type == .timer {
+                            HStack(spacing: 8) {
+                                Image(systemName: "timer")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("计时 \(formattedTimerDuration(reminder.timerDurationSeconds))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                if let endDate = reminder.endDate {
+                                    Text("·")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text(endDate, style: .time)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
 
-                        if let nextTrigger = reminder.nextTriggerDate {
-                            Text(timeUntil(nextTrigger))
-                                .font(.caption2)
-                                .foregroundColor(AppColors.colorForType(reminder.type))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(AppColors.colorForType(reminder.type).opacity(0.12))
-                                .clipShape(Capsule())
+                            timerStatusBadge
+                        } else {
+                            // 原有的时间提醒显示逻辑
+                            HStack(spacing: 8) {
+                                Image(systemName: "repeat")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(reminder.repeatRule.description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text("·")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(reminder.timeOfDay, style: .time)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            if let nextTrigger = reminder.nextTriggerDate {
+                                Text(timeUntil(nextTrigger))
+                                    .font(.caption2)
+                                    .foregroundColor(AppColors.colorForType(reminder.type))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(AppColors.colorForType(reminder.type).opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
                         }
                     }
                 }
@@ -850,14 +1045,53 @@ struct ReminderRow: View {
                 Spacer()
 
                 // 根据类型显示不同的控件
-                if reminder.type == .todo {
+                if isQuickEditMode {
+                    HStack(spacing: 10) {
+                        Button(action: onTap) {
+                            Image(systemName: "pencil.circle.fill")
+                                .foregroundColor(.blue)
+                                .font(.title2)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("编辑")
+
+                        Button(role: .destructive) {
+                            onDelete?()
+                        } label: {
+                            Image(systemName: "trash.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.title2)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("删除")
+                    }
+                } else if reminder.type == .todo {
                     // TODO 类型显示勾选框
                     Button(action: onToggle) {
-                        Image(systemName: "circle")
+                        Image(systemName: "square")
                             .foregroundColor(AppColors.todo)
                             .font(.title2)
                     }
                     .buttonStyle(.plain)
+                } else if reminder.type == .timer {
+                    HStack(spacing: 10) {
+                        Button(action: onToggle) {
+                            Image(systemName: reminder.isActive ? "pause.circle.fill" : (reminder.timerPausedRemaining != nil ? "play.circle.fill" : "arrow.clockwise.circle.fill"))
+                                .foregroundColor(AppColors.timer)
+                                .font(.title2)
+                        }
+                        .buttonStyle(.plain)
+
+                        if reminder.isActive || reminder.timerPausedRemaining != nil {
+                            Button(action: { onSecondaryAction?() }) {
+                                Image(systemName: "stop.circle.fill")
+                                    .foregroundColor(AppColors.timer)
+                                    .font(.title2)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("结束计时")
+                        }
+                    }
                 } else {
                     // 其他类型显示 Toggle
                     Toggle("", isOn: toggleBinding)
