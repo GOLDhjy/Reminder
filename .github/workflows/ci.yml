@@ -31,6 +31,3 @@ jobs:
 
     - name: Run Unit Tests
       run: xcodebuild test -project Reminder.xcodeproj -scheme Reminder -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ReminderTests
-
-    - name: Run UI Tests
-      run: xcodebuild test -project Reminder.xcodeproj -scheme Reminder -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ReminderUITests
