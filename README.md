@@ -1,5 +1,10 @@
 # Reminder
 
+[![iOS CI](https://github.com/GitHubPros/Reminder/actions/workflows/ci.yml/badge.svg)](https://github.com/GitHubPros/Reminder/actions/workflows/ci.yml)
+[![](https://img.shields.io/badge/platform-iOS%20%7C%20macOS-blue)](https://github.com/GitHubPros/Reminder)
+[![](https://img.shields.io/badge/Swift-5.9+-orange)](https://swift.org)
+[![](https://img.shields.io/badge/Xcode-16.0+-blue)](https://developer.apple.com/xcode)
+
 > 使用 Claude 和 Codex 开发，仍需人工引导与调试。
 
 综合生活提醒应用，支持多种提醒类型、TODO任务管理、计时任务、节假日管理，并适配 iOS/macOS/visionOS 多平台。
