@@ -53,30 +53,37 @@ jobs:
       id: release_notes
       run: |
         VERSION="${{ steps.get_version.outputs.VERSION }}"
-        NOTES="## 🎉 Release ${VERSION}\n\n"
-        NOTES+="### 📦 构建信息\n"
-        NOTES+="- **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')\n"
-        NOTES+="- **提交**: ${GITHUB_SHA:0:7}\n"
-        NOTES+="\n### ✅ 检查清单\n"
-        NOTES+="- [x] 项目构建成功\n"
-        NOTES+="- [x] 单元测试通过\n"
-        NOTES+="- [x] 代码已合并到主分支\n"
-        NOTES+="\n### 📥 下载说明\n"
-        NOTES+="这是源代码发布。如需在设备上运行，请克隆仓库并在 Xcode 中打开。\n"
-        NOTES+="\n---\n"
-        NOTES+="\n<details>\n"
-        NOTES+="<summary>完整变更日志</summary>\n"
-        NOTES+="\n"
-        if [ -f CHANGELOG.md ]; then
+        cat > release_notes.txt << 'EOF'
+        ## 🎉 Release ${VERSION}
+
+        ### 📦 构建信息
+        - **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')
+        - **提交**: ${GITHUB_SHA:0:7}
+
+        ### ✅ 检查清单
+        - ✅ 项目构建成功
+        - ✅ 单元测试通过
+        - ✅ 代码已合并到主分支
+
+        ### 📥 下载说明
+        这是源代码发布。如需在设备上运行，请克隆仓库并在 Xcode 中打开。
+
+        ---
+
+        <details>
+        <summary>完整变更日志</summary>
+
+        $(if [ -f CHANGELOG.md ]; then
           head -n 50 CHANGELOG.md
         else
           echo "暂无变更日志"
-        fi
-        NOTES+="\n"
-        NOTES+="\n</details>"
+        fi)
 
-        # Save to file for multiline support
-        echo "$NOTES" > release_notes.txt
+        </details>
+        EOF
+
+        # Replace variables
+        sed -i "s/\${VERSION}/${VERSION}/g" release_notes.txt
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
