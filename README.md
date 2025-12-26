@@ -1,7 +1,7 @@
 # Reminder
 
 [![iOS CI](https://github.com/GOLDhjy/Reminder/actions/workflows/ci.yml/badge.svg)](https://github.com/GOLDhjy/Reminder/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/GOLDhjy/Reminder?display_name=tag&include_prereleases&label=Release)](https://github.com/GOLDhjy/Reminder/releases)
+[![Release](https://img.shields.io/github/v/release/GOLDhjy/Reminder?display_name=tag&include_prereleases&label=Release&color=brightgreen)](https://github.com/GOLDhjy/Reminder/releases)
 [![](https://img.shields.io/badge/platform-iOS%20%7C%20macOS-blue)](https://github.com/GitHubPros/Reminder)
 [![](https://img.shields.io/badge/Swift-5.9+-orange)](https://swift.org)
 [![](https://img.shields.io/badge/Xcode-16.0+-blue)](https://developer.apple.com/xcode)
