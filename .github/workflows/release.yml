@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Create Release
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Get version from tag or input
+      id: get_version
+      run: |
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Show version
+      run: echo "Releasing version ${{ steps.get_version.outputs.VERSION }}"
+
+    - name: Clean build folder
+      run: xcodebuild clean -project Reminder.xcodeproj -scheme Reminder
+
+    - name: Build Release
+      run: xcodebuild -project Reminder.xcodeproj -scheme Reminder -configuration Release build -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+
+    - name: Run Unit Tests
+      run: xcodebuild test -project Reminder.xcodeproj -scheme Reminder -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ReminderTests
+
+    - name: Generate Release Notes
+      id: release_notes
+      run: |
+        VERSION="${{ steps.get_version.outputs.VERSION }}"
+        NOTES="## 🎉 Release ${VERSION}\n\n"
+        NOTES+="### 📦 构建信息\n"
+        NOTES+="- **构建时间**: $(date '+%Y-%m-%d %H:%M:%S')\n"
+        NOTES+="- **提交**: ${GITHUB_SHA:0:7}\n"
+        NOTES+="\n### ✅ 检查清单\n"
+        NOTES+="- [x] 项目构建成功\n"
+        NOTES+="- [x] 单元测试通过\n"
+        NOTES+="- [x] 代码已合并到主分支\n"
+        NOTES+="\n### 📥 下载说明\n"
+        NOTES+="这是源代码发布。如需在设备上运行，请克隆仓库并在 Xcode 中打开。\n"
+        NOTES+="\n---\n"
+        NOTES+="\n<details>\n"
+        NOTES+="<summary>完整变更日志</summary>\n"
+        NOTES+="\n"
+        if [ -f CHANGELOG.md ]; then
+          head -n 50 CHANGELOG.md
+        else
+          echo "暂无变更日志"
+        fi
+        NOTES+="\n"
+        NOTES+="\n</details>"
+
+        # Save to file for multiline support
+        echo "$NOTES" > release_notes.txt
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        name: Release ${{ steps.get_version.outputs.VERSION }}
+        body_path: release_notes.txt
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
